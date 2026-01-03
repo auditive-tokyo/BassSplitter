@@ -1,0 +1,40 @@
+# Build output
+build/
+cmake-build-*/
+
+# IDE
+.idea/
+.vscode/
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# macOS
+.DS_Store
+*.swp
+*~
+
+# JUCE specific
+JuceLibraryCode/
+Builds/
+
+# Compiled files
+*.o
+*.obj
+*.a
+*.lib
+*.dylib
+*.so
+*.dll
+
+# Debug files
+*.dSYM/
+
+# Plugin builds (if you want to exclude them)
+# *.vst3
+# *.component
+# *.app
+
+# Logs
+*.log
