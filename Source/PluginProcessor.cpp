@@ -5,10 +5,27 @@ BassSplitterAudioProcessor::BassSplitterAudioProcessor()
     : AudioProcessor(BusesProperties()
                          .withInput("Input", juce::AudioChannelSet::stereo(), true)
                          .withOutput("Low", juce::AudioChannelSet::stereo(), true)
-                         .withOutput("High", juce::AudioChannelSet::stereo(), true))
+                         .withOutput("High", juce::AudioChannelSet::stereo(), true)),
+      apvts(*this, nullptr, "Parameters", createParameterLayout())
 {
     lowpassFilter.setType(juce::dsp::LinkwitzRileyFilterType::lowpass);
     highpassFilter.setType(juce::dsp::LinkwitzRileyFilterType::highpass);
+}
+
+juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::createParameterLayout()
+{
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+
+    // クロスオーバー周波数パラメータ（20Hz〜2000Hz、デフォルト200Hz）
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("crossover", 1),  // パラメータID
+        "Crossover",                         // 表示名
+        juce::NormalisableRange<float>(20.0f, 2000.0f, 1.0f, 0.3f),  // 範囲（対数スケール）
+        200.0f,                              // デフォルト値
+        "Hz"                                 // 単位
+    ));
+
+    return { params.begin(), params.end() };
 }
 
 BassSplitterAudioProcessor::~BassSplitterAudioProcessor()
@@ -68,6 +85,8 @@ void BassSplitterAudioProcessor::changeProgramName(int index, const juce::String
 
 void BassSplitterAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
+    currentSampleRate = sampleRate;
+
     juce::dsp::ProcessSpec spec;
     spec.sampleRate = sampleRate;
     spec.maximumBlockSize = static_cast<juce::uint32>(samplesPerBlock);
@@ -76,8 +95,10 @@ void BassSplitterAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     lowpassFilter.prepare(spec);
     highpassFilter.prepare(spec);
 
-    lowpassFilter.setCutoffFrequency(crossoverFrequency);
-    highpassFilter.setCutoffFrequency(crossoverFrequency);
+    // 初期周波数を設定
+    float freq = apvts.getRawParameterValue("crossover")->load();
+    lowpassFilter.setCutoffFrequency(freq);
+    highpassFilter.setCutoffFrequency(freq);
 }
 
 void BassSplitterAudioProcessor::releaseResources()
@@ -108,6 +129,11 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
     auto totalNumInputChannels = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
+
+    // パラメータから周波数を取得してフィルターに設定
+    float freq = apvts.getRawParameterValue("crossover")->load();
+    lowpassFilter.setCutoffFrequency(freq);
+    highpassFilter.setCutoffFrequency(freq);
 
     // 未使用の出力チャンネルをクリア
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
@@ -162,12 +188,18 @@ juce::AudioProcessorEditor* BassSplitterAudioProcessor::createEditor()
 
 void BassSplitterAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    juce::ignoreUnused(destData);
+    // パラメータの状態を保存
+    auto state = apvts.copyState();
+    std::unique_ptr<juce::XmlElement> xml(state.createXml());
+    copyXmlToBinary(*xml, destData);
 }
 
 void BassSplitterAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
-    juce::ignoreUnused(data, sizeInBytes);
+    // パラメータの状態を復元
+    std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
+    if (xmlState != nullptr && xmlState->hasTagName(apvts.state.getType()))
+        apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginInstance()

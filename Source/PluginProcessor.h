@@ -35,13 +35,22 @@ public:
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
 
+    // パラメータ管理（公開）
+    juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
+
 private:
-    // クロスオーバー周波数（固定200Hz）
-    static constexpr float crossoverFrequency = 200.0f;
+    // パラメータレイアウト作成
+    juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+
+    // パラメータ管理
+    juce::AudioProcessorValueTreeState apvts;
 
     // Linkwitz-Rileyフィルター（ローパス・ハイパス）
     juce::dsp::LinkwitzRileyFilter<float> lowpassFilter;
     juce::dsp::LinkwitzRileyFilter<float> highpassFilter;
+
+    // サンプルレート保存
+    double currentSampleRate = 44100.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BassSplitterAudioProcessor)
 };

@@ -8,15 +8,45 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
     titleLabel.setText("BassSplitter", juce::dontSendNotification);
     titleLabel.setFont(juce::Font(24.0f, juce::Font::bold));
     titleLabel.setJustificationType(juce::Justification::centred);
+    titleLabel.setColour(juce::Label::textColourId, juce::Colours::white);
     addAndMakeVisible(titleLabel);
 
-    // 情報ラベル
-    infoLabel.setText("Crossover: 200 Hz", juce::dontSendNotification);
-    infoLabel.setFont(juce::Font(16.0f));
-    infoLabel.setJustificationType(juce::Justification::centred);
-    addAndMakeVisible(infoLabel);
+    // 周波数ラベル
+    freqLabel.setText("Crossover Frequency", juce::dontSendNotification);
+    freqLabel.setFont(juce::Font(14.0f));
+    freqLabel.setJustificationType(juce::Justification::centred);
+    freqLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    addAndMakeVisible(freqLabel);
 
-    setSize(300, 150);
+    // 周波数値ラベル
+    freqValueLabel.setFont(juce::Font(16.0f, juce::Font::bold));
+    freqValueLabel.setJustificationType(juce::Justification::centred);
+    freqValueLabel.setColour(juce::Label::textColourId, juce::Colour(0xff4a90d9));
+    addAndMakeVisible(freqValueLabel);
+
+    // クロスオーバーノブ
+    crossoverSlider.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    crossoverSlider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+    crossoverSlider.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xff4a90d9));
+    crossoverSlider.setColour(juce::Slider::rotarySliderOutlineColourId, juce::Colour(0xff333344));
+    crossoverSlider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
+    addAndMakeVisible(crossoverSlider);
+
+    // スライダーをパラメータに接続
+    crossoverAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        audioProcessor.getAPVTS(), "crossover", crossoverSlider);
+
+    // 値変更時にラベルを更新
+    crossoverSlider.onValueChange = [this]() {
+        int freq = static_cast<int>(crossoverSlider.getValue());
+        freqValueLabel.setText(juce::String(freq) + " Hz", juce::dontSendNotification);
+    };
+
+    // 初期値を表示
+    int initialFreq = static_cast<int>(crossoverSlider.getValue());
+    freqValueLabel.setText(juce::String(initialFreq) + " Hz", juce::dontSendNotification);
+
+    setSize(300, 250);
 }
 
 BassSplitterAudioProcessorEditor::~BassSplitterAudioProcessorEditor()
@@ -25,6 +55,7 @@ BassSplitterAudioProcessorEditor::~BassSplitterAudioProcessorEditor()
 
 void BassSplitterAudioProcessorEditor::paint(juce::Graphics& g)
 {
+    // 背景グラデーション
     g.fillAll(juce::Colour(0xff1a1a2e));
 
     // 装飾線
@@ -36,7 +67,14 @@ void BassSplitterAudioProcessorEditor::resized()
 {
     auto area = getLocalBounds().reduced(20);
 
-    titleLabel.setBounds(area.removeFromTop(40));
+    titleLabel.setBounds(area.removeFromTop(35));
     area.removeFromTop(10);
-    infoLabel.setBounds(area.removeFromTop(30));
+    freqLabel.setBounds(area.removeFromTop(20));
+    area.removeFromTop(5);
+
+    // ノブを中央に配置
+    auto knobArea = area.removeFromTop(120);
+    crossoverSlider.setBounds(knobArea.withSizeKeepingCentre(100, 100));
+
+    freqValueLabel.setBounds(area.removeFromTop(25));
 }

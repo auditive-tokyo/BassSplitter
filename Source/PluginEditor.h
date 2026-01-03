@@ -17,7 +17,12 @@ private:
     BassSplitterAudioProcessor& audioProcessor;
 
     juce::Label titleLabel;
-    juce::Label infoLabel;
+    juce::Label freqLabel;
+    juce::Label freqValueLabel;
+
+    // クロスオーバー周波数ノブ
+    juce::Slider crossoverSlider;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> crossoverAttachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BassSplitterAudioProcessorEditor)
 };

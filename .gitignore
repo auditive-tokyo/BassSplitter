@@ -31,10 +31,5 @@ Builds/
 # Debug files
 *.dSYM/
 
-# Plugin builds (if you want to exclude them)
-# *.vst3
-# *.component
-# *.app
-
 # Logs
 *.log
