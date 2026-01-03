@@ -19,7 +19,6 @@ private:
 
     juce::Label titleLabel;
     juce::Label freqLabel;
-    juce::Label freqValueLabel;
 
     // クロスオーバー周波数ノブ
     juce::Slider crossoverSlider;

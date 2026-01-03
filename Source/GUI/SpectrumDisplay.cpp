@@ -53,7 +53,7 @@ void SpectrumDisplay::paint(juce::Graphics& g)
 
     // グリッド線（周波数）
     g.setColour(juce::Colour(0xff2a2a3a));
-    std::array<float, 8> gridFreqs = { 50.0f, 100.0f, 200.0f, 500.0f, 1000.0f, 2000.0f, 5000.0f, 10000.0f };
+    std::array<float, 12> gridFreqs = { 20.0f, 50.0f, 100.0f, 200.0f, 500.0f, 1000.0f, 2000.0f, 5000.0f, 10000.0f, 20000.0f };
     for (float freq : gridFreqs)
     {
         float x = frequencyToX(freq);
@@ -63,12 +63,17 @@ void SpectrumDisplay::paint(juce::Graphics& g)
     // 周波数ラベル
     g.setColour(juce::Colour(0xff666677));
     g.setFont(10.0f);
-    std::array<std::pair<float, const char*>, 5> labels = {{
+    std::array<std::pair<float, const char*>, 10> labels = {{
+        {20.0f, "20"},
+        {50.0f, "50"},
         {100.0f, "100"},
+        {200.0f, "200"},
         {500.0f, "500"},
         {1000.0f, "1k"},
+        {2000.0f, "2k"},
         {5000.0f, "5k"},
-        {10000.0f, "10k"}
+        {10000.0f, "10k"},
+        {20000.0f, "20k"}
     }};
     for (auto& [freq, label] : labels)
     {
