@@ -2,7 +2,9 @@
 #include "PluginEditor.h"
 
 BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterAudioProcessor& p)
-    : AudioProcessorEditor(&p), audioProcessor(p)
+    : AudioProcessorEditor(&p), 
+      audioProcessor(p),
+      spectrumDisplay(p.getSpectrumAnalyzer())
 {
     // タイトルラベル
     titleLabel.setText("BassSplitter", juce::dontSendNotification);
@@ -36,17 +38,22 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
     crossoverAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         audioProcessor.getAPVTS(), "crossover", crossoverSlider);
 
-    // 値変更時にラベルを更新
+    // 値変更時にラベルとスペクトラムを更新
     crossoverSlider.onValueChange = [this]() {
         int freq = static_cast<int>(crossoverSlider.getValue());
         freqValueLabel.setText(juce::String(freq) + " Hz", juce::dontSendNotification);
+        spectrumDisplay.setCrossoverFrequency(static_cast<float>(freq));
     };
 
     // 初期値を表示
     int initialFreq = static_cast<int>(crossoverSlider.getValue());
     freqValueLabel.setText(juce::String(initialFreq) + " Hz", juce::dontSendNotification);
+    spectrumDisplay.setCrossoverFrequency(static_cast<float>(initialFreq));
 
-    setSize(300, 250);
+    // スペクトラムディスプレイ
+    addAndMakeVisible(spectrumDisplay);
+
+    setSize(500, 400);
 }
 
 BassSplitterAudioProcessorEditor::~BassSplitterAudioProcessorEditor()
@@ -68,13 +75,21 @@ void BassSplitterAudioProcessorEditor::resized()
     auto area = getLocalBounds().reduced(20);
 
     titleLabel.setBounds(area.removeFromTop(35));
-    area.removeFromTop(10);
-    freqLabel.setBounds(area.removeFromTop(20));
     area.removeFromTop(5);
 
-    // ノブを中央に配置
-    auto knobArea = area.removeFromTop(120);
-    crossoverSlider.setBounds(knobArea.withSizeKeepingCentre(100, 100));
+    // スペクトラムディスプレイ
+    spectrumDisplay.setBounds(area.removeFromTop(180));
+    area.removeFromTop(10);
 
-    freqValueLabel.setBounds(area.removeFromTop(25));
+    // ノブエリア
+    auto knobArea = area;
+    
+    freqLabel.setBounds(knobArea.removeFromTop(20));
+    knobArea.removeFromTop(5);
+    
+    // ノブを中央に配置
+    auto knobSection = knobArea.removeFromTop(80);
+    crossoverSlider.setBounds(knobSection.withSizeKeepingCentre(80, 80));
+
+    freqValueLabel.setBounds(knobArea.removeFromTop(25));
 }

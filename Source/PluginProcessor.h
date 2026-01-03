@@ -2,6 +2,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
+#include "DSP/SpectrumAnalyzer.h"
 
 class BassSplitterAudioProcessor : public juce::AudioProcessor
 {
@@ -38,6 +39,9 @@ public:
     // パラメータ管理（公開）
     juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
 
+    // スペクトラムアナライザーへのアクセス
+    SpectrumAnalyzer& getSpectrumAnalyzer() { return spectrumAnalyzer; }
+
 private:
     // パラメータレイアウト作成
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -48,6 +52,9 @@ private:
     // Linkwitz-Rileyフィルター（ローパス・ハイパス）
     juce::dsp::LinkwitzRileyFilter<float> lowpassFilter;
     juce::dsp::LinkwitzRileyFilter<float> highpassFilter;
+
+    // スペクトラムアナライザー
+    SpectrumAnalyzer spectrumAnalyzer;
 
     // サンプルレート保存
     double currentSampleRate = 44100.0;

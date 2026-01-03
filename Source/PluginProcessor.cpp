@@ -99,6 +99,9 @@ void BassSplitterAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     float freq = apvts.getRawParameterValue("crossover")->load();
     lowpassFilter.setCutoffFrequency(freq);
     highpassFilter.setCutoffFrequency(freq);
+
+    // スペクトラムアナライザーを設定
+    spectrumAnalyzer.setSampleRate(sampleRate);
 }
 
 void BassSplitterAudioProcessor::releaseResources()
@@ -138,6 +141,10 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     // 未使用の出力チャンネルをクリア
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear(i, 0, buffer.getNumSamples());
+
+    // スペクトラムアナライザーに入力信号を送る（左チャンネル）
+    if (buffer.getNumChannels() > 0)
+        spectrumAnalyzer.pushSamples(buffer.getReadPointer(0), buffer.getNumSamples());
 
     // 入力をコピーしてフィルタリング
     juce::AudioBuffer<float> lowBuffer(buffer.getNumChannels(), buffer.getNumSamples());
