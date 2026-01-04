@@ -223,7 +223,7 @@ void BassSplitterAudioProcessorEditor::resized()
     auto slopeArea = area.removeFromTop(30);
     slopeLabel.setBounds(slopeArea.removeFromLeft(50));
     slopeComboBox.setBounds(slopeArea.removeFromLeft(120).reduced(5, 2));
-    slopeArea.removeFromLeft(20);  // スペース
+    slopeArea.removeFromLeft(20); // スペース
     resetPeaksButton.setBounds(slopeArea.removeFromLeft(80).reduced(5, 2));
     area.removeFromTop(15);
 
