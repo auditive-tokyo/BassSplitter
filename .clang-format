@@ -1,0 +1,26 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+ColumnLimit: 120
+
+# ブレース
+BreakBeforeBraces: Allman
+
+# ポインタ/参照の位置
+PointerAlignment: Left
+
+# インクルードのソート
+SortIncludes: true
+IncludeBlocks: Regroup
+
+# 短い関数を1行に
+AllowShortFunctionsOnASingleLine: Inline
+
+# 名前空間のインデント
+NamespaceIndentation: None
+
+# アクセス修飾子
+AccessModifierOffset: -4
+
+# 引数が長い場合の改行
+BinPackArguments: false
+BinPackParameters: false

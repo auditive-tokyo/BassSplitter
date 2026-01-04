@@ -1,5 +1,6 @@
 # Build output
 build/
+build-clangd/
 cmake-build-*/
 
 # IDE
@@ -9,6 +10,10 @@ cmake-build-*/
 *.xcworkspace/
 xcuserdata/
 DerivedData/
+
+# clangd
+compile_commands.json
+.cache/
 
 # macOS
 .DS_Store

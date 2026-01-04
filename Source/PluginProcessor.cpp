@@ -358,11 +358,6 @@ int BassSplitterAudioProcessor::getCurrentSlopeDB() const
     }
 }
 
-juce::AudioProcessor* JUCE_CALLTYPE createPluginInstance()
-{
-    return new BassSplitterAudioProcessor();
-}
-
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new BassSplitterAudioProcessor();

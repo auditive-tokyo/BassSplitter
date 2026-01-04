@@ -1,5 +1,4 @@
 #include "SpectrumAnalyzer.h"
-#include <cmath>
 
 SpectrumAnalyzer::SpectrumAnalyzer()
     : fft(fftOrder),

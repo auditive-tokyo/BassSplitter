@@ -173,7 +173,7 @@ void SpectrumDisplay::drawFilterCurve(juce::Graphics& g, float height)
     float width = static_cast<float>(getWidth());
     
     // dBをY座標に変換するラムダ
-    auto dbToY = [height, this](float db) {
+    auto dbToY = [height](float db) {
         float normalized = (db - minDB) / (maxDB - minDB);
         return height * (1.0f - normalized);
     };
