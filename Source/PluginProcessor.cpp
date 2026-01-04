@@ -1,4 +1,5 @@
 #include "PluginProcessor.h"
+
 #include "PluginEditor.h"
 
 BassSplitterAudioProcessor::BassSplitterAudioProcessor()
@@ -7,79 +8,76 @@ BassSplitterAudioProcessor::BassSplitterAudioProcessor()
                          .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       apvts(*this, nullptr, "Parameters", createParameterLayout())
 {
-    for (auto& filter : lowpassFilters)
-        filter.setType(juce::dsp::LinkwitzRileyFilterType::lowpass);
-    for (auto& filter : highpassFilters)
-        filter.setType(juce::dsp::LinkwitzRileyFilterType::highpass);
+    // フィルタータイプを設定
+    for (auto& crossover : crossoverFilters)
+    {
+        for (auto& filter : crossover.lowpass)
+            filter.setType(juce::dsp::LinkwitzRileyFilterType::lowpass);
+        for (auto& filter : crossover.highpass)
+            filter.setType(juce::dsp::LinkwitzRileyFilterType::highpass);
+    }
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::createParameterLayout()
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
-    // クロスオーバー周波数パラメータ（20Hz〜2000Hz、デフォルト200Hz）
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID("crossover", 1),  // パラメータID
-        "Crossover",                         // 表示名
-        juce::NormalisableRange<float>(20.0f, 2000.0f, 1.0f, 0.3f),  // 範囲（対数スケール）
-        200.0f,                              // デフォルト値
-        "Hz"                                 // 単位
-    ));
-
-    // スロープパラメータ（0=12dB, 1=24dB, 2=48dB, 3=96dB, 4=192dB）
+    // グローバルスロープパラメータ
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID("slope", 1),
         "Slope",
-        juce::StringArray{ "12 dB/oct", "24 dB/oct", "48 dB/oct", "96 dB/oct", "192 dB/oct" },
-        1  // デフォルト: 24dB/oct
-    ));
+        juce::StringArray{"12 dB/oct", "24 dB/oct", "48 dB/oct", "96 dB/oct", "192 dB/oct"},
+        1 // デフォルト: 24dB/oct
+        ));
 
-    // Low Band Solo
-    params.push_back(std::make_unique<juce::AudioParameterBool>(
-        juce::ParameterID("lowSolo", 1),
-        "Low Solo",
-        false
-    ));
+    // クロスオーバー周波数（5つ）
+    std::array<float, numCrossovers> defaultFreqs = {80.0f, 250.0f, 1000.0f, 4000.0f, 12000.0f};
+    for (int i = 0; i < numCrossovers; ++i)
+    {
+        params.push_back(
+            std::make_unique<juce::AudioParameterFloat>(juce::ParameterID("crossover" + juce::String(i + 1), 1),
+                                                        "Crossover " + juce::String(i + 1),
+                                                        juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.3f),
+                                                        defaultFreqs[static_cast<size_t>(i)],
+                                                        "Hz"));
+    }
 
-    // High Band Solo
-    params.push_back(std::make_unique<juce::AudioParameterBool>(
-        juce::ParameterID("highSolo", 1),
-        "High Solo",
-        false
-    ));
+    // ゲイン表示用のラムダ
+    auto gainToString = [](float value, int)
+    {
+        if (value <= -69.5f)
+            return juce::String(juce::CharPointer_UTF8("-\xe2\x88\x9e"));
+        return juce::String(value, 1) + " dB";
+    };
 
-    // Low Band Gain (-inf 〜 +6dB)
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID("lowGain", 1),
-        "Low Gain",
-        juce::NormalisableRange<float>(-70.0f, 6.0f, 0.1f, 2.5f),
-        0.0f,
-        juce::AudioParameterFloatAttributes()
-            .withStringFromValueFunction([](float value, int) {
-                if (value <= -69.5f) return juce::String(juce::CharPointer_UTF8("-\xe2\x88\x9e"));
-                return juce::String(value, 1) + " dB";
-            })
-    ));
+    // 各バンドのパラメータ
+    for (int i = 0; i < numBands; ++i)
+    {
+        juce::String bandId = "band" + juce::String(i + 1);
+        juce::String bandName = "Band " + juce::String(i + 1);
 
-    // High Band Gain (-inf 〜 +6dB)
-    params.push_back(std::make_unique<juce::AudioParameterFloat>(
-        juce::ParameterID("highGain", 1),
-        "High Gain",
-        juce::NormalisableRange<float>(-70.0f, 6.0f, 0.1f, 2.5f),
-        0.0f,
-        juce::AudioParameterFloatAttributes()
-            .withStringFromValueFunction([](float value, int) {
-                if (value <= -69.5f) return juce::String(juce::CharPointer_UTF8("-\xe2\x88\x9e"));
-                return juce::String(value, 1) + " dB";
-            })
-    ));
+        // Bypass（デフォルトではBand2-5がバイパス）
+        bool defaultBypass = (i >= 1 && i <= 4); // Band 2, 3, 4, 5
+        params.push_back(std::make_unique<juce::AudioParameterBool>(
+            juce::ParameterID(bandId + "Bypass", 1), bandName + " Bypass", defaultBypass));
 
-    return { params.begin(), params.end() };
+        // Solo
+        params.push_back(std::make_unique<juce::AudioParameterBool>(
+            juce::ParameterID(bandId + "Solo", 1), bandName + " Solo", false));
+
+        // Gain
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(bandId + "Gain", 1),
+            bandName + " Gain",
+            juce::NormalisableRange<float>(-70.0f, 6.0f, 0.1f, 2.5f),
+            0.0f,
+            juce::AudioParameterFloatAttributes().withStringFromValueFunction(gainToString)));
+    }
+
+    return {params.begin(), params.end()};
 }
 
-BassSplitterAudioProcessor::~BassSplitterAudioProcessor()
-{
-}
+BassSplitterAudioProcessor::~BassSplitterAudioProcessor() {}
 
 const juce::String BassSplitterAudioProcessor::getName() const
 {
@@ -141,20 +139,18 @@ void BassSplitterAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     spec.maximumBlockSize = static_cast<juce::uint32>(samplesPerBlock);
     spec.numChannels = static_cast<juce::uint32>(getTotalNumInputChannels());
 
-    for (auto& filter : lowpassFilters)
-        filter.prepare(spec);
-    for (auto& filter : highpassFilters)
-        filter.prepare(spec);
+    // フィルターを準備
+    for (auto& crossover : crossoverFilters)
+    {
+        for (auto& filter : crossover.lowpass)
+            filter.prepare(spec);
+        for (auto& filter : crossover.highpass)
+            filter.prepare(spec);
+    }
 
-    // 補正フィルターを準備
-    compensationFilter.prepare(spec);
-
-    // 初期周波数を設定
-    float freq = apvts.getRawParameterValue("crossover")->load();
-    for (auto& filter : lowpassFilters)
-        filter.setCutoffFrequency(freq);
-    for (auto& filter : highpassFilters)
-        filter.setCutoffFrequency(freq);
+    // バンドバッファを準備
+    for (auto& buffer : bandBuffers)
+        buffer.setSize(static_cast<int>(spec.numChannels), samplesPerBlock);
 
     // スペクトラムアナライザーを設定
     spectrumAnalyzer.setSampleRate(sampleRate);
@@ -162,159 +158,177 @@ void BassSplitterAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
 
 void BassSplitterAudioProcessor::releaseResources()
 {
-    for (auto& filter : lowpassFilters)
-        filter.reset();
-    for (auto& filter : highpassFilters)
-        filter.reset();
-    compensationFilter.reset();
+    for (auto& crossover : crossoverFilters)
+    {
+        for (auto& filter : crossover.lowpass)
+            filter.reset();
+        for (auto& filter : crossover.highpass)
+            filter.reset();
+    }
 }
 
 bool BassSplitterAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
 {
-    // 入力はステレオ
     if (layouts.getMainInputChannelSet() != juce::AudioChannelSet::stereo())
         return false;
 
-    // 出力は2つのステレオバス（Low, High）
     if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
         return false;
 
     return true;
 }
 
-void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
-                                               juce::MidiBuffer& midiMessages)
+void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ignoreUnused(midiMessages);
-
     juce::ScopedNoDenormals noDenormals;
 
-    auto totalNumInputChannels = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
+    auto numChannels = buffer.getNumChannels();
+    auto numSamples = buffer.getNumSamples();
 
-    // パラメータから周波数とスロープを取得
-    float freq = apvts.getRawParameterValue("crossover")->load();
+    // スペクトラムアナライザーに入力信号を送る
+    if (numChannels > 0)
+        spectrumAnalyzer.pushSamples(buffer.getReadPointer(0), numSamples);
+
+    // スロープを取得
     int slopeIndex = static_cast<int>(apvts.getRawParameterValue("slope")->load());
-    
-    // 全フィルターに周波数を設定
-    for (auto& filter : lowpassFilters)
-        filter.setCutoffFrequency(freq);
-    for (auto& filter : highpassFilters)
-        filter.setCutoffFrequency(freq);
-
-    // スロープに応じたフィルター段数を決定
-    // 0=12dB(1段), 1=24dB(1段), 2=48dB(2段), 3=96dB(4段), 4=192dB(8段)
     int numStages = 1;
-    float peakGainDB = 0.0f;  // ピークEQの補正量
-    float peakQ = 0.7f;       // ピークEQのQ値
     switch (slopeIndex)
     {
-        case 0: numStages = 1; peakGainDB = 0.0f; break;   // 12dB/oct - 補正なし
-        case 1: numStages = 1; peakGainDB = 0.0f; break;   // 24dB/oct - 補正なし（基準）
-        case 2: numStages = 2; peakGainDB = 3.0f; peakQ = 0.7f; break;   // 48dB/oct
-        case 3: numStages = 4; peakGainDB = 6.0f; peakQ = 0.5f; break;   // 96dB/oct
-        case 4: numStages = 8; peakGainDB = 9.0f; peakQ = 0.4f; break;   // 192dB/oct
-        default: numStages = 1; peakGainDB = 0.0f; break;
+    case 0:
+        numStages = 1;
+        break; // 12dB/oct
+    case 1:
+        numStages = 1;
+        break; // 24dB/oct
+    case 2:
+        numStages = 2;
+        break; // 48dB/oct
+    case 3:
+        numStages = 4;
+        break; // 96dB/oct
+    case 4:
+        numStages = 8;
+        break; // 192dB/oct
+    default:
+        numStages = 1;
+        break;
     }
 
-    // クロスオーバー付近の補正フィルターを更新
-    if (peakGainDB > 0.0f)
+    // クロスオーバー周波数を取得（ソートしない - 各クロスオーバーは対応するバンド境界に固定）
+    std::array<float, numCrossovers> crossoverFreqs;
+    for (int i = 0; i < numCrossovers; ++i)
     {
-        *compensationFilter.state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(
-            currentSampleRate, freq, peakQ, juce::Decibels::decibelsToGain(peakGainDB));
+        crossoverFreqs[static_cast<size_t>(i)] = apvts.getRawParameterValue("crossover" + juce::String(i + 1))->load();
     }
-    else
+    // 注意: ソートしない。Crossover1はBand1-2の境界、Crossover2はBand2-3の境界、など固定。
+    // ユーザーが重なりのある周波数を設定した場合は、その通りに動作する。
+
+    // フィルターに周波数を設定
+    for (int i = 0; i < numCrossovers; ++i)
     {
-        // 補正なしの場合はフラットに
-        *compensationFilter.state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(
-            currentSampleRate, freq, 0.7f, 1.0f);
-    }
-
-    // 未使用の出力チャンネルをクリア
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear(i, 0, buffer.getNumSamples());
-
-    // スペクトラムアナライザーに入力信号を送る（左チャンネル）
-    if (buffer.getNumChannels() > 0)
-        spectrumAnalyzer.pushSamples(buffer.getReadPointer(0), buffer.getNumSamples());
-
-    // 入力をコピーしてフィルタリング
-    juce::AudioBuffer<float> lowBuffer(buffer.getNumChannels(), buffer.getNumSamples());
-    juce::AudioBuffer<float> highBuffer(buffer.getNumChannels(), buffer.getNumSamples());
-
-    // 入力信号をコピー
-    for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
-    {
-        lowBuffer.copyFrom(channel, 0, buffer, channel, 0, buffer.getNumSamples());
-        highBuffer.copyFrom(channel, 0, buffer, channel, 0, buffer.getNumSamples());
+        for (auto& filter : crossoverFilters[static_cast<size_t>(i)].lowpass)
+            filter.setCutoffFrequency(crossoverFreqs[static_cast<size_t>(i)]);
+        for (auto& filter : crossoverFilters[static_cast<size_t>(i)].highpass)
+            filter.setCutoffFrequency(crossoverFreqs[static_cast<size_t>(i)]);
     }
 
-    // Lowpassフィルタを適用（指定段数分）
-    juce::dsp::AudioBlock<float> lowBlock(lowBuffer);
-    for (int stage = 0; stage < numStages; ++stage)
+    // バンドパラメータを取得
+    std::array<bool, numBands> bypassed;
+    std::array<bool, numBands> soloed;
+    std::array<float, numBands> gains;
+    bool anySolo = false;
+
+    for (int i = 0; i < numBands; ++i)
     {
-        juce::dsp::ProcessContextReplacing<float> lowContext(lowBlock);
-        lowpassFilters[static_cast<size_t>(stage)].process(lowContext);
+        juce::String bandId = "band" + juce::String(i + 1);
+        bypassed[static_cast<size_t>(i)] = apvts.getRawParameterValue(bandId + "Bypass")->load() > 0.5f;
+        soloed[static_cast<size_t>(i)] = apvts.getRawParameterValue(bandId + "Solo")->load() > 0.5f;
+        float gainDB = apvts.getRawParameterValue(bandId + "Gain")->load();
+        gains[static_cast<size_t>(i)] = juce::Decibels::decibelsToGain(gainDB);
+
+        if (soloed[static_cast<size_t>(i)])
+            anySolo = true;
     }
 
-    // Highpassフィルタを適用（指定段数分）
-    juce::dsp::AudioBlock<float> highBlock(highBuffer);
-    for (int stage = 0; stage < numStages; ++stage)
+    // 各バンドを処理
+    // Band 1 (最低域): 入力 → lowpass[0]
+    // Band 2: highpass[0] → lowpass[1]
+    // Band 3: highpass[1] → lowpass[2]
+    // Band 4: highpass[2] → lowpass[3]
+    // Band 5: highpass[3] → lowpass[4]
+    // Band 6 (最高域): 入力 → highpass[4]
+
+    // バンドバッファを準備
+    for (int band = 0; band < numBands; ++band)
     {
-        juce::dsp::ProcessContextReplacing<float> highContext(highBlock);
-        highpassFilters[static_cast<size_t>(stage)].process(highContext);
+        bandBuffers[static_cast<size_t>(band)].setSize(numChannels, numSamples, false, false, true);
+
+        // 入力をコピー
+        for (int ch = 0; ch < numChannels; ++ch)
+            bandBuffers[static_cast<size_t>(band)].copyFrom(ch, 0, buffer, ch, 0, numSamples);
     }
 
-    // 出力バッファに結果を書き込む
-    // Solo状態とゲインを取得
-    bool lowSolo = apvts.getRawParameterValue("lowSolo")->load() > 0.5f;
-    bool highSolo = apvts.getRawParameterValue("highSolo")->load() > 0.5f;
-    float lowGainDB = apvts.getRawParameterValue("lowGain")->load();
-    float highGainDB = apvts.getRawParameterValue("highGain")->load();
-    float lowGain = juce::Decibels::decibelsToGain(lowGainDB);
-    float highGain = juce::Decibels::decibelsToGain(highGainDB);
-
-    for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
+    // 各バンドにフィルターを適用
+    for (int band = 0; band < numBands; ++band)
     {
-        auto* output = buffer.getWritePointer(channel);
-        auto* low = lowBuffer.getReadPointer(channel);
-        auto* high = highBuffer.getReadPointer(channel);
+        if (bypassed[static_cast<size_t>(band)])
+            continue; // バイパス時は処理スキップ
 
-        for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+        juce::dsp::AudioBlock<float> block(bandBuffers[static_cast<size_t>(band)]);
+
+        if (band == 0)
         {
-            // ゲインを適用
-            float lowSample = low[sample] * lowGain;
-            float highSample = high[sample] * highGain;
-            
-            float result;
-            
-            // Solo状態に応じて出力を切り替え
-            if (lowSolo && !highSolo)
+            // Band 1: lowpass[0]のみ
+            for (int stage = 0; stage < numStages; ++stage)
             {
-                // Low Solo: Lowだけ出力
-                result = lowSample;
+                juce::dsp::ProcessContextReplacing<float> ctx(block);
+                crossoverFilters[0].lowpass[static_cast<size_t>(stage)].process(ctx);
             }
-            else if (highSolo && !lowSolo)
+        }
+        else if (band == numBands - 1)
+        {
+            // Band 6: highpass[4]のみ
+            for (int stage = 0; stage < numStages; ++stage)
             {
-                // High Solo: Highだけ出力
-                result = highSample;
+                juce::dsp::ProcessContextReplacing<float> ctx(block);
+                crossoverFilters[numCrossovers - 1].highpass[static_cast<size_t>(stage)].process(ctx);
             }
-            else
+        }
+        else
+        {
+            // 中間バンド: highpass[band-1] → lowpass[band]
+            for (int stage = 0; stage < numStages; ++stage)
             {
-                // 両方Soloまたは両方Off: Low + High を合成
-                result = lowSample + highSample;
+                juce::dsp::ProcessContextReplacing<float> ctx(block);
+                crossoverFilters[static_cast<size_t>(band - 1)].highpass[static_cast<size_t>(stage)].process(ctx);
             }
-            
-            output[sample] = result;
+            for (int stage = 0; stage < numStages; ++stage)
+            {
+                juce::dsp::ProcessContextReplacing<float> ctx(block);
+                crossoverFilters[static_cast<size_t>(band)].lowpass[static_cast<size_t>(stage)].process(ctx);
+            }
         }
     }
 
-    // 補正フィルターを適用（クロスオーバー付近のディップを補正）
-    if (peakGainDB > 0.0f)
+    // 出力をミックス
+    buffer.clear();
+    for (int band = 0; band < numBands; ++band)
     {
-        juce::dsp::AudioBlock<float> outputBlock(buffer);
-        juce::dsp::ProcessContextReplacing<float> context(outputBlock);
-        compensationFilter.process(context);
+        // バイパス時はスキップ
+        if (bypassed[static_cast<size_t>(band)])
+            continue;
+
+        // ソロモード：ソロされていないバンドはスキップ
+        if (anySolo && !soloed[static_cast<size_t>(band)])
+            continue;
+
+        float gain = gains[static_cast<size_t>(band)];
+
+        for (int ch = 0; ch < numChannels; ++ch)
+        {
+            buffer.addFrom(ch, 0, bandBuffers[static_cast<size_t>(band)], ch, 0, numSamples, gain);
+        }
     }
 }
 
@@ -330,18 +344,34 @@ juce::AudioProcessorEditor* BassSplitterAudioProcessor::createEditor()
 
 void BassSplitterAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
 {
-    // パラメータの状態を保存
     auto state = apvts.copyState();
+
+    // バンド名を保存
+    for (int i = 0; i < numBands; ++i)
+    {
+        state.setProperty("bandName" + juce::String(i), bandNames[static_cast<size_t>(i)], nullptr);
+    }
+
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
     copyXmlToBinary(*xml, destData);
 }
 
 void BassSplitterAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
 {
-    // パラメータの状態を復元
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
     if (xmlState != nullptr && xmlState->hasTagName(apvts.state.getType()))
-        apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
+    {
+        auto state = juce::ValueTree::fromXml(*xmlState);
+
+        // バンド名を復元
+        for (int i = 0; i < numBands; ++i)
+        {
+            auto name = state.getProperty("bandName" + juce::String(i), "Band " + juce::String(i + 1));
+            bandNames[static_cast<size_t>(i)] = name.toString();
+        }
+
+        apvts.replaceState(state);
+    }
 }
 
 int BassSplitterAudioProcessor::getCurrentSlopeDB() const
@@ -349,13 +379,39 @@ int BassSplitterAudioProcessor::getCurrentSlopeDB() const
     int slopeIndex = static_cast<int>(apvts.getRawParameterValue("slope")->load());
     switch (slopeIndex)
     {
-        case 0: return 12;
-        case 1: return 24;
-        case 2: return 48;
-        case 3: return 96;
-        case 4: return 192;
-        default: return 24;
+    case 0:
+        return 12;
+    case 1:
+        return 24;
+    case 2:
+        return 48;
+    case 3:
+        return 96;
+    case 4:
+        return 192;
+    default:
+        return 24;
     }
+}
+
+float BassSplitterAudioProcessor::getCrossoverFrequency(int index) const
+{
+    if (index < 0 || index >= numCrossovers)
+        return 1000.0f;
+    return apvts.getRawParameterValue("crossover" + juce::String(index + 1))->load();
+}
+
+juce::String BassSplitterAudioProcessor::getBandName(int bandIndex) const
+{
+    if (bandIndex < 0 || bandIndex >= numBands)
+        return "Band";
+    return bandNames[static_cast<size_t>(bandIndex)];
+}
+
+void BassSplitterAudioProcessor::setBandName(int bandIndex, const juce::String& name)
+{
+    if (bandIndex >= 0 && bandIndex < numBands)
+        bandNames[static_cast<size_t>(bandIndex)] = name;
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

@@ -1,12 +1,17 @@
 #pragma once
 
+#include "DSP/SpectrumAnalyzer.h"
+
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
-#include "DSP/SpectrumAnalyzer.h"
 
 class BassSplitterAudioProcessor : public juce::AudioProcessor
 {
 public:
+    // バンド数
+    static constexpr int numBands = 6;
+    static constexpr int numCrossovers = numBands - 1; // 5つのクロスオーバーポイント
+
     BassSplitterAudioProcessor();
     ~BassSplitterAudioProcessor() override;
 
@@ -45,6 +50,13 @@ public:
     // 現在のスロープを取得（dB/oct）
     int getCurrentSlopeDB() const;
 
+    // クロスオーバー周波数を取得
+    float getCrossoverFrequency(int index) const;
+
+    // バンド名を取得/設定（ValueTreeに保存）
+    juce::String getBandName(int bandIndex) const;
+    void setBandName(int bandIndex, const juce::String& name);
+
 private:
     // パラメータレイアウト作成
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -52,19 +64,26 @@ private:
     // パラメータ管理
     juce::AudioProcessorValueTreeState apvts;
 
-    // Linkwitz-Rileyフィルター（複数段でスロープを実現）
-    // 12dB/oct = 1段, 24dB/oct = 1段(LR), 48dB/oct = 2段, 96dB = 4段, 192dB = 8段
-    std::array<juce::dsp::LinkwitzRileyFilter<float>, 8> lowpassFilters;
-    std::array<juce::dsp::LinkwitzRileyFilter<float>, 8> highpassFilters;
+    // 各クロスオーバーポイント用のLinkwitz-Rileyフィルター
+    // 各クロスオーバーに対してローパス/ハイパスのペア（最大8段）
+    struct CrossoverFilters
+    {
+        std::array<juce::dsp::LinkwitzRileyFilter<float>, 8> lowpass;
+        std::array<juce::dsp::LinkwitzRileyFilter<float>, 8> highpass;
+    };
+    std::array<CrossoverFilters, numCrossovers> crossoverFilters;
 
-    // クロスオーバー付近のゲイン補正用ピークEQ（ステレオ）
-    juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> compensationFilter;
+    // 各バンドの出力バッファ
+    std::array<juce::AudioBuffer<float>, numBands> bandBuffers;
 
     // スペクトラムアナライザー
     SpectrumAnalyzer spectrumAnalyzer;
 
     // サンプルレート保存
     double currentSampleRate = 44100.0;
+
+    // バンド名（ValueTreeに保存）
+    std::array<juce::String, numBands> bandNames = {"Band 1", "Band 2", "Band 3", "Band 4", "Band 5", "Band 6"};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BassSplitterAudioProcessor)
 };
