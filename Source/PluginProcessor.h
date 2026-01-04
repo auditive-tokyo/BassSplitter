@@ -42,6 +42,9 @@ public:
     // スペクトラムアナライザーへのアクセス
     SpectrumAnalyzer& getSpectrumAnalyzer() { return spectrumAnalyzer; }
 
+    // 現在のスロープを取得（dB/oct）
+    int getCurrentSlopeDB() const;
+
 private:
     // パラメータレイアウト作成
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -49,9 +52,10 @@ private:
     // パラメータ管理
     juce::AudioProcessorValueTreeState apvts;
 
-    // Linkwitz-Rileyフィルター（ローパス・ハイパス）
-    juce::dsp::LinkwitzRileyFilter<float> lowpassFilter;
-    juce::dsp::LinkwitzRileyFilter<float> highpassFilter;
+    // Linkwitz-Rileyフィルター（複数段でスロープを実現）
+    // 12dB/oct = 1段, 24dB/oct = 1段(LR), 48dB/oct = 2段(LR)
+    std::array<juce::dsp::LinkwitzRileyFilter<float>, 2> lowpassFilters;
+    std::array<juce::dsp::LinkwitzRileyFilter<float>, 2> highpassFilters;
 
     // スペクトラムアナライザー
     SpectrumAnalyzer spectrumAnalyzer;

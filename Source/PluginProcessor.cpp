@@ -4,12 +4,13 @@
 BassSplitterAudioProcessor::BassSplitterAudioProcessor()
     : AudioProcessor(BusesProperties()
                          .withInput("Input", juce::AudioChannelSet::stereo(), true)
-                         .withOutput("Low", juce::AudioChannelSet::stereo(), true)
-                         .withOutput("High", juce::AudioChannelSet::stereo(), true)),
+                         .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
       apvts(*this, nullptr, "Parameters", createParameterLayout())
 {
-    lowpassFilter.setType(juce::dsp::LinkwitzRileyFilterType::lowpass);
-    highpassFilter.setType(juce::dsp::LinkwitzRileyFilterType::highpass);
+    for (auto& filter : lowpassFilters)
+        filter.setType(juce::dsp::LinkwitzRileyFilterType::lowpass);
+    for (auto& filter : highpassFilters)
+        filter.setType(juce::dsp::LinkwitzRileyFilterType::highpass);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::createParameterLayout()
@@ -23,6 +24,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::
         juce::NormalisableRange<float>(20.0f, 2000.0f, 1.0f, 0.3f),  // 範囲（対数スケール）
         200.0f,                              // デフォルト値
         "Hz"                                 // 単位
+    ));
+
+    // スロープパラメータ（0=12dB, 1=24dB, 2=48dB）
+    params.push_back(std::make_unique<juce::AudioParameterChoice>(
+        juce::ParameterID("slope", 1),
+        "Slope",
+        juce::StringArray{ "12 dB/oct", "24 dB/oct", "48 dB/oct" },
+        1  // デフォルト: 24dB/oct
     ));
 
     return { params.begin(), params.end() };
@@ -92,13 +101,17 @@ void BassSplitterAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     spec.maximumBlockSize = static_cast<juce::uint32>(samplesPerBlock);
     spec.numChannels = static_cast<juce::uint32>(getTotalNumInputChannels());
 
-    lowpassFilter.prepare(spec);
-    highpassFilter.prepare(spec);
+    for (auto& filter : lowpassFilters)
+        filter.prepare(spec);
+    for (auto& filter : highpassFilters)
+        filter.prepare(spec);
 
     // 初期周波数を設定
     float freq = apvts.getRawParameterValue("crossover")->load();
-    lowpassFilter.setCutoffFrequency(freq);
-    highpassFilter.setCutoffFrequency(freq);
+    for (auto& filter : lowpassFilters)
+        filter.setCutoffFrequency(freq);
+    for (auto& filter : highpassFilters)
+        filter.setCutoffFrequency(freq);
 
     // スペクトラムアナライザーを設定
     spectrumAnalyzer.setSampleRate(sampleRate);
@@ -106,8 +119,10 @@ void BassSplitterAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
 
 void BassSplitterAudioProcessor::releaseResources()
 {
-    lowpassFilter.reset();
-    highpassFilter.reset();
+    for (auto& filter : lowpassFilters)
+        filter.reset();
+    for (auto& filter : highpassFilters)
+        filter.reset();
 }
 
 bool BassSplitterAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
@@ -133,10 +148,19 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     auto totalNumInputChannels = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
 
-    // パラメータから周波数を取得してフィルターに設定
+    // パラメータから周波数とスロープを取得
     float freq = apvts.getRawParameterValue("crossover")->load();
-    lowpassFilter.setCutoffFrequency(freq);
-    highpassFilter.setCutoffFrequency(freq);
+    int slopeIndex = static_cast<int>(apvts.getRawParameterValue("slope")->load());
+    
+    // 全フィルターに周波数を設定
+    for (auto& filter : lowpassFilters)
+        filter.setCutoffFrequency(freq);
+    for (auto& filter : highpassFilters)
+        filter.setCutoffFrequency(freq);
+
+    // スロープに応じたフィルター段数を決定
+    // 0 = 12dB/oct (1段), 1 = 24dB/oct (1段LR), 2 = 48dB/oct (2段LR)
+    int numStages = (slopeIndex == 2) ? 2 : 1;
 
     // 未使用の出力チャンネルをクリア
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
@@ -157,15 +181,21 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         highBuffer.copyFrom(channel, 0, buffer, channel, 0, buffer.getNumSamples());
     }
 
-    // Lowpassフィルタを適用
+    // Lowpassフィルタを適用（指定段数分）
     juce::dsp::AudioBlock<float> lowBlock(lowBuffer);
-    juce::dsp::ProcessContextReplacing<float> lowContext(lowBlock);
-    lowpassFilter.process(lowContext);
+    for (int stage = 0; stage < numStages; ++stage)
+    {
+        juce::dsp::ProcessContextReplacing<float> lowContext(lowBlock);
+        lowpassFilters[static_cast<size_t>(stage)].process(lowContext);
+    }
 
-    // Highpassフィルタを適用
+    // Highpassフィルタを適用（指定段数分）
     juce::dsp::AudioBlock<float> highBlock(highBuffer);
-    juce::dsp::ProcessContextReplacing<float> highContext(highBlock);
-    highpassFilter.process(highContext);
+    for (int stage = 0; stage < numStages; ++stage)
+    {
+        juce::dsp::ProcessContextReplacing<float> highContext(highBlock);
+        highpassFilters[static_cast<size_t>(stage)].process(highContext);
+    }
 
     // 出力バッファに結果を書き込む
     // シンプル版：LowとHighを合成して出力（分割確認用）
@@ -207,6 +237,18 @@ void BassSplitterAudioProcessor::setStateInformation(const void* data, int sizeI
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
     if (xmlState != nullptr && xmlState->hasTagName(apvts.state.getType()))
         apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
+}
+
+int BassSplitterAudioProcessor::getCurrentSlopeDB() const
+{
+    int slopeIndex = static_cast<int>(apvts.getRawParameterValue("slope")->load());
+    switch (slopeIndex)
+    {
+        case 0: return 12;
+        case 1: return 24;
+        case 2: return 48;
+        default: return 24;
+    }
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginInstance()

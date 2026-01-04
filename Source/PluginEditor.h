@@ -19,10 +19,15 @@ private:
 
     juce::Label titleLabel;
     juce::Label freqLabel;
+    juce::Label slopeLabel;
 
     // クロスオーバー周波数ノブ
     juce::Slider crossoverSlider;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> crossoverAttachment;
+
+    // スロープ選択
+    juce::ComboBox slopeComboBox;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> slopeAttachment;
 
     // スペクトラムディスプレイ
     SpectrumDisplay spectrumDisplay;

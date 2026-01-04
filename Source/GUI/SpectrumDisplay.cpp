@@ -28,6 +28,12 @@ void SpectrumDisplay::setCrossoverFrequency(float freq)
     repaint();
 }
 
+void SpectrumDisplay::setSlope(int slope)
+{
+    slopeDB = slope;
+    repaint();
+}
+
 float SpectrumDisplay::frequencyToX(float freq) const
 {
     // 対数スケールで周波数をX座標に変換
@@ -132,20 +138,16 @@ void SpectrumDisplay::paint(juce::Graphics& g)
         g.strokePath(spectrumPath, juce::PathStrokeType(1.5f));
     }
 
+    // フィルターカーブを描画
+    drawFilterCurve(g, height);
+
     // クロスオーバーライン
     float crossoverX = frequencyToX(crossoverFrequency);
 
-    // Low領域のハイライト
-    g.setColour(juce::Colour(0x2000ff00));
-    g.fillRect(0.0f, 0.0f, crossoverX, height);
-
-    // High領域のハイライト
-    g.setColour(juce::Colour(0x20ff6600));
-    g.fillRect(crossoverX, 0.0f, width - crossoverX, height);
-
-    // クロスオーバーライン本体
-    g.setColour(juce::Colour(0xffff4444));
-    g.drawVerticalLine(static_cast<int>(crossoverX), 0.0f, height);
+    // クロスオーバーライン本体（点線）
+    g.setColour(juce::Colour(0xaaffffff));
+    float dashLengths[] = { 4.0f, 4.0f };
+    g.drawDashedLine(juce::Line<float>(crossoverX, 0.0f, crossoverX, height), dashLengths, 2, 1.0f);
 
     // クロスオーバー周波数ラベル
     g.setColour(juce::Colours::white);
@@ -156,6 +158,98 @@ void SpectrumDisplay::paint(juce::Graphics& g)
     // 枠線
     g.setColour(juce::Colour(0xff4a4a5a));
     g.drawRect(bounds, 1.0f);
+}
+
+void SpectrumDisplay::drawFilterCurve(juce::Graphics& g, float height)
+{
+    float width = static_cast<float>(getWidth());
+    
+    // dBをY座標に変換するラムダ
+    auto dbToY = [height, this](float db) {
+        float normalized = (db - minDB) / (maxDB - minDB);
+        return height * (1.0f - normalized);
+    };
+
+    // ローパスカーブ（緑）
+    juce::Path lowpassPath;
+    bool lowStarted = false;
+    for (float x = 0; x < width; x += 2.0f)
+    {
+        float freq = xToFrequency(x);
+        float gainDB = getLowpassGain(freq);
+        float y = dbToY(gainDB);
+
+        if (!lowStarted)
+        {
+            lowpassPath.startNewSubPath(x, y);
+            lowStarted = true;
+        }
+        else
+        {
+            lowpassPath.lineTo(x, y);
+        }
+    }
+    g.setColour(juce::Colour(0xff00cc66));
+    g.strokePath(lowpassPath, juce::PathStrokeType(2.0f));
+
+    // ハイパスカーブ（オレンジ）
+    juce::Path highpassPath;
+    bool highStarted = false;
+    for (float x = 0; x < width; x += 2.0f)
+    {
+        float freq = xToFrequency(x);
+        float gainDB = getHighpassGain(freq);
+        float y = dbToY(gainDB);
+
+        if (!highStarted)
+        {
+            highpassPath.startNewSubPath(x, y);
+            highStarted = true;
+        }
+        else
+        {
+            highpassPath.lineTo(x, y);
+        }
+    }
+    g.setColour(juce::Colour(0xffff9933));
+    g.strokePath(highpassPath, juce::PathStrokeType(2.0f));
+
+    // 0dBライン（参照線）
+    float zeroDBY = dbToY(0.0f);
+    g.setColour(juce::Colour(0x40ffffff));
+    g.drawHorizontalLine(static_cast<int>(zeroDBY), 0.0f, width);
+}
+
+float SpectrumDisplay::getLowpassGain(float freq) const
+{
+    // Linkwitz-Rileyローパスフィルターの周波数応答（近似）
+    // LR: -6dB at crossover, slope depends on order
+    float ratio = freq / crossoverFrequency;
+    
+    // 次数に応じたスロープ
+    // 12dB/oct = 2次, 24dB/oct = 4次, 48dB/oct = 8次
+    int order = slopeDB / 6;  // 12->2, 24->4, 48->8
+    
+    // Butterworth magnitude response: |H(s)| = 1 / sqrt(1 + (f/fc)^(2n))
+    // Linkwitz-Rileyはさらに-6dB at fcなので調整
+    float magnitude = 1.0f / std::sqrt(1.0f + std::pow(ratio, 2.0f * order));
+    
+    // dBに変換
+    float gainDB = 20.0f * std::log10(std::max(magnitude, 0.0001f));
+    return std::max(gainDB, minDB);
+}
+
+float SpectrumDisplay::getHighpassGain(float freq) const
+{
+    // Linkwitz-Rileyハイパスフィルターの周波数応答（近似）
+    float ratio = crossoverFrequency / freq;
+    
+    int order = slopeDB / 6;
+    
+    float magnitude = 1.0f / std::sqrt(1.0f + std::pow(ratio, 2.0f * order));
+    
+    float gainDB = 20.0f * std::log10(std::max(magnitude, 0.0001f));
+    return std::max(gainDB, minDB);
 }
 
 void SpectrumDisplay::resized()

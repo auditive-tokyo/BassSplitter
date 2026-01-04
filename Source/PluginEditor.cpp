@@ -36,14 +36,41 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
     crossoverAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         audioProcessor.getAPVTS(), "crossover", crossoverSlider);
 
+    // スロープラベル
+    slopeLabel.setText("Slope", juce::dontSendNotification);
+    slopeLabel.setFont(juce::Font(14.0f));
+    slopeLabel.setJustificationType(juce::Justification::centred);
+    slopeLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    addAndMakeVisible(slopeLabel);
+
+    // スロープコンボボックス
+    slopeComboBox.addItem("12 dB/oct", 1);
+    slopeComboBox.addItem("24 dB/oct", 2);
+    slopeComboBox.addItem("48 dB/oct", 3);
+    slopeComboBox.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff0d0d1a));
+    slopeComboBox.setColour(juce::ComboBox::textColourId, juce::Colour(0xff4a90d9));
+    slopeComboBox.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff333344));
+    slopeComboBox.setColour(juce::ComboBox::arrowColourId, juce::Colour(0xff4a90d9));
+    addAndMakeVisible(slopeComboBox);
+
+    // コンボボックスをパラメータに接続
+    slopeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+        audioProcessor.getAPVTS(), "slope", slopeComboBox);
+
     // 値変更時にスペクトラムを更新
     crossoverSlider.onValueChange = [this]() {
         float freq = static_cast<float>(crossoverSlider.getValue());
         spectrumDisplay.setCrossoverFrequency(freq);
     };
 
+    slopeComboBox.onChange = [this]() {
+        int slopeDB = audioProcessor.getCurrentSlopeDB();
+        spectrumDisplay.setSlope(slopeDB);
+    };
+
     // 初期値でスペクトラムを更新
     spectrumDisplay.setCrossoverFrequency(static_cast<float>(crossoverSlider.getValue()));
+    spectrumDisplay.setSlope(audioProcessor.getCurrentSlopeDB());
 
     // スペクトラムディスプレイ
     addAndMakeVisible(spectrumDisplay);
@@ -76,13 +103,21 @@ void BassSplitterAudioProcessorEditor::resized()
     spectrumDisplay.setBounds(area.removeFromTop(250));
     area.removeFromTop(10);
 
-    // ノブエリア
-    auto knobArea = area;
+    // コントロールエリアを2列に分割
+    auto controlArea = area;
+    int halfWidth = controlArea.getWidth() / 2;
     
-    freqLabel.setBounds(knobArea.removeFromTop(20));
-    knobArea.removeFromTop(5);
-    
-    // ノブを中央に配置（テキストボックス分の高さも含める）
-    auto knobSection = knobArea.removeFromTop(110);
+    // 左側：クロスオーバーノブ
+    auto leftArea = controlArea.removeFromLeft(halfWidth);
+    freqLabel.setBounds(leftArea.removeFromTop(20));
+    leftArea.removeFromTop(5);
+    auto knobSection = leftArea.removeFromTop(110);
     crossoverSlider.setBounds(knobSection.withSizeKeepingCentre(100, 110));
+    
+    // 右側：スロープ選択
+    auto rightArea = controlArea;
+    slopeLabel.setBounds(rightArea.removeFromTop(20));
+    rightArea.removeFromTop(5);
+    auto comboSection = rightArea.removeFromTop(30);
+    slopeComboBox.setBounds(comboSection.withSizeKeepingCentre(120, 28));
 }
