@@ -48,6 +48,32 @@ juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::
         false
     ));
 
+    // Low Band Gain (-inf 〜 +6dB)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("lowGain", 1),
+        "Low Gain",
+        juce::NormalisableRange<float>(-70.0f, 6.0f, 0.1f, 2.5f),
+        0.0f,
+        juce::AudioParameterFloatAttributes()
+            .withStringFromValueFunction([](float value, int) {
+                if (value <= -69.5f) return juce::String(juce::CharPointer_UTF8("-\xe2\x88\x9e"));
+                return juce::String(value, 1) + " dB";
+            })
+    ));
+
+    // High Band Gain (-inf 〜 +6dB)
+    params.push_back(std::make_unique<juce::AudioParameterFloat>(
+        juce::ParameterID("highGain", 1),
+        "High Gain",
+        juce::NormalisableRange<float>(-70.0f, 6.0f, 0.1f, 2.5f),
+        0.0f,
+        juce::AudioParameterFloatAttributes()
+            .withStringFromValueFunction([](float value, int) {
+                if (value <= -69.5f) return juce::String(juce::CharPointer_UTF8("-\xe2\x88\x9e"));
+                return juce::String(value, 1) + " dB";
+            })
+    ));
+
     return { params.begin(), params.end() };
 }
 
@@ -240,9 +266,13 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     }
 
     // 出力バッファに結果を書き込む
-    // Solo状態を取得
+    // Solo状態とゲインを取得
     bool lowSolo = apvts.getRawParameterValue("lowSolo")->load() > 0.5f;
     bool highSolo = apvts.getRawParameterValue("highSolo")->load() > 0.5f;
+    float lowGainDB = apvts.getRawParameterValue("lowGain")->load();
+    float highGainDB = apvts.getRawParameterValue("highGain")->load();
+    float lowGain = juce::Decibels::decibelsToGain(lowGainDB);
+    float highGain = juce::Decibels::decibelsToGain(highGainDB);
 
     for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
     {
@@ -252,23 +282,27 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
         {
+            // ゲインを適用
+            float lowSample = low[sample] * lowGain;
+            float highSample = high[sample] * highGain;
+            
             float result;
             
             // Solo状態に応じて出力を切り替え
             if (lowSolo && !highSolo)
             {
                 // Low Solo: Lowだけ出力
-                result = low[sample];
+                result = lowSample;
             }
             else if (highSolo && !lowSolo)
             {
                 // High Solo: Highだけ出力
-                result = high[sample];
+                result = highSample;
             }
             else
             {
                 // 両方Soloまたは両方Off: Low + High を合成
-                result = low[sample] + high[sample];
+                result = lowSample + highSample;
             }
             
             output[sample] = result;

@@ -94,6 +94,25 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
     lowSoloAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         audioProcessor.getAPVTS(), "lowSolo", lowSoloButton);
 
+    // Low Gain フェーダー
+    lowGainSlider.setSliderStyle(juce::Slider::LinearVertical);
+    lowGainSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    lowGainSlider.setColour(juce::Slider::trackColourId, juce::Colour(0xff00cc66));
+    lowGainSlider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
+    lowGainSlider.setColour(juce::Slider::textBoxTextColourId, juce::Colour(0xff00cc66));
+    lowGainSlider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff0d0d1a));
+    lowGainSlider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0xff333344));
+    lowGainSlider.setDoubleClickReturnValue(true, 0.0);
+    addAndMakeVisible(lowGainSlider);
+    lowGainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        audioProcessor.getAPVTS(), "lowGain", lowGainSlider);
+
+    lowGainLabel.setText("Gain", juce::dontSendNotification);
+    lowGainLabel.setFont(juce::Font(11.0f));
+    lowGainLabel.setJustificationType(juce::Justification::centred);
+    lowGainLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    addAndMakeVisible(lowGainLabel);
+
     // === High Band セクション ===
     highBandLabel.setText("High Band", juce::dontSendNotification);
     highBandLabel.setFont(juce::Font(14.0f, juce::Font::bold));
@@ -110,10 +129,29 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
     highSoloAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         audioProcessor.getAPVTS(), "highSolo", highSoloButton);
 
+    // High Gain フェーダー
+    highGainSlider.setSliderStyle(juce::Slider::LinearVertical);
+    highGainSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
+    highGainSlider.setColour(juce::Slider::trackColourId, juce::Colour(0xffff9933));
+    highGainSlider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
+    highGainSlider.setColour(juce::Slider::textBoxTextColourId, juce::Colour(0xffff9933));
+    highGainSlider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff0d0d1a));
+    highGainSlider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0xff333344));
+    highGainSlider.setDoubleClickReturnValue(true, 0.0);
+    addAndMakeVisible(highGainSlider);
+    highGainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        audioProcessor.getAPVTS(), "highGain", highGainSlider);
+
+    highGainLabel.setText("Gain", juce::dontSendNotification);
+    highGainLabel.setFont(juce::Font(11.0f));
+    highGainLabel.setJustificationType(juce::Justification::centred);
+    highGainLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
+    addAndMakeVisible(highGainLabel);
+
     // スペクトラムディスプレイ
     addAndMakeVisible(spectrumDisplay);
 
-    setSize(800, 520);
+    setSize(800, 560);
 }
 
 BassSplitterAudioProcessorEditor::~BassSplitterAudioProcessorEditor()
@@ -149,8 +187,11 @@ void BassSplitterAudioProcessorEditor::resized()
     // 1列目：Low Band
     auto col1 = controlArea.removeFromLeft(quarterWidth);
     lowBandLabel.setBounds(col1.removeFromTop(20));
-    col1.removeFromTop(10);
-    lowSoloButton.setBounds(col1.removeFromTop(30).withSizeKeepingCentre(40, 28));
+    col1.removeFromTop(5);
+    lowSoloButton.setBounds(col1.removeFromTop(28).withSizeKeepingCentre(40, 28));
+    col1.removeFromTop(8);
+    lowGainLabel.setBounds(col1.removeFromTop(14));
+    lowGainSlider.setBounds(col1.removeFromTop(100).withSizeKeepingCentre(50, 100));
     
     // 2列目：クロスオーバーノブ
     auto col2 = controlArea.removeFromLeft(quarterWidth);
@@ -169,6 +210,9 @@ void BassSplitterAudioProcessorEditor::resized()
     // 4列目：High Band
     auto col4 = controlArea;
     highBandLabel.setBounds(col4.removeFromTop(20));
-    col4.removeFromTop(10);
-    highSoloButton.setBounds(col4.removeFromTop(30).withSizeKeepingCentre(40, 28));
+    col4.removeFromTop(5);
+    highSoloButton.setBounds(col4.removeFromTop(28).withSizeKeepingCentre(40, 28));
+    col4.removeFromTop(8);
+    highGainLabel.setBounds(col4.removeFromTop(14));
+    highGainSlider.setBounds(col4.removeFromTop(100).withSizeKeepingCentre(50, 100));
 }

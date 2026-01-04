@@ -37,11 +37,17 @@ private:
     juce::Label lowBandLabel;
     juce::TextButton lowSoloButton { "S" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> lowSoloAttachment;
+    juce::Slider lowGainSlider;
+    juce::Label lowGainLabel;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> lowGainAttachment;
 
     // High Band セクション
     juce::Label highBandLabel;
     juce::TextButton highSoloButton { "S" };
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> highSoloAttachment;
+    juce::Slider highGainSlider;
+    juce::Label highGainLabel;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> highGainAttachment;
 
     // スペクトラムディスプレイ
     SpectrumDisplay spectrumDisplay;
