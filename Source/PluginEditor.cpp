@@ -6,6 +6,10 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
       audioProcessor(p),
       spectrumDisplay(p.getSpectrumAnalyzer())
 {
+    // GPU描画を有効化
+    openGLContext.setComponentPaintingEnabled(true);
+    openGLContext.attachTo(*this);
+
     // タイトルラベル
     titleLabel.setText("BassSplitter", juce::dontSendNotification);
     titleLabel.setFont(juce::Font(24.0f, juce::Font::bold));
@@ -80,6 +84,7 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
 
 BassSplitterAudioProcessorEditor::~BassSplitterAudioProcessorEditor()
 {
+    openGLContext.detach();
 }
 
 void BassSplitterAudioProcessorEditor::paint(juce::Graphics& g)

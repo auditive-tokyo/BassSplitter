@@ -3,13 +3,21 @@
 SpectrumDisplay::SpectrumDisplay(SpectrumAnalyzer& analyzerRef)
     : analyzer(analyzerRef)
 {
-    // 30fps でリフレッシュ
-    startTimerHz(30);
+    // タイマーは visibilityChanged で開始
 }
 
 SpectrumDisplay::~SpectrumDisplay()
 {
     stopTimer();
+}
+
+void SpectrumDisplay::visibilityChanged()
+{
+    // GUIが表示されている時だけタイマーを動かす
+    if (isVisible())
+        startTimerHz(30);
+    else
+        stopTimer();
 }
 
 void SpectrumDisplay::timerCallback()

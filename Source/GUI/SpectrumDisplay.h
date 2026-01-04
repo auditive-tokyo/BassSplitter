@@ -17,6 +17,7 @@ public:
     void paint(juce::Graphics& g) override;
     void resized() override;
     void timerCallback() override;
+    void visibilityChanged() override;
 
     /** クロスオーバー周波数を設定 */
     void setCrossoverFrequency(float freq);
