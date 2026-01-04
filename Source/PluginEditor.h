@@ -33,6 +33,16 @@ private:
     juce::ComboBox slopeComboBox;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> slopeAttachment;
 
+    // Low Band セクション
+    juce::Label lowBandLabel;
+    juce::TextButton lowSoloButton { "S" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> lowSoloAttachment;
+
+    // High Band セクション
+    juce::Label highBandLabel;
+    juce::TextButton highSoloButton { "S" };
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> highSoloAttachment;
+
     // スペクトラムディスプレイ
     SpectrumDisplay spectrumDisplay;
 

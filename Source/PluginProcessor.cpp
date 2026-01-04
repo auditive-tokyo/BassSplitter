@@ -34,6 +34,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::
         1  // デフォルト: 24dB/oct
     ));
 
+    // Low Band Solo
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("lowSolo", 1),
+        "Low Solo",
+        false
+    ));
+
+    // High Band Solo
+    params.push_back(std::make_unique<juce::AudioParameterBool>(
+        juce::ParameterID("highSolo", 1),
+        "High Solo",
+        false
+    ));
+
     return { params.begin(), params.end() };
 }
 
@@ -198,7 +212,10 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     }
 
     // 出力バッファに結果を書き込む
-    // シンプル版：LowとHighを合成して出力（分割確認用）
+    // Solo状態を取得
+    bool lowSolo = apvts.getRawParameterValue("lowSolo")->load() > 0.5f;
+    bool highSolo = apvts.getRawParameterValue("highSolo")->load() > 0.5f;
+
     for (int channel = 0; channel < buffer.getNumChannels(); ++channel)
     {
         auto* output = buffer.getWritePointer(channel);
@@ -207,8 +224,22 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
         {
-            // Low + High を合成（位相が揃うので元の信号に戻るはず）
-            output[sample] = low[sample] + high[sample];
+            // Solo状態に応じて出力を切り替え
+            if (lowSolo && !highSolo)
+            {
+                // Low Solo: Lowだけ出力
+                output[sample] = low[sample];
+            }
+            else if (highSolo && !lowSolo)
+            {
+                // High Solo: Highだけ出力
+                output[sample] = high[sample];
+            }
+            else
+            {
+                // 両方Soloまたは両方Off: Low + High を合成
+                output[sample] = low[sample] + high[sample];
+            }
         }
     }
 }

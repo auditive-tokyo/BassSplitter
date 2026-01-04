@@ -76,6 +76,38 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
     spectrumDisplay.setCrossoverFrequency(static_cast<float>(crossoverSlider.getValue()));
     spectrumDisplay.setSlope(audioProcessor.getCurrentSlopeDB());
 
+    // === Low Band セクション ===
+    lowBandLabel.setText("Low Band", juce::dontSendNotification);
+    lowBandLabel.setFont(juce::Font(14.0f, juce::Font::bold));
+    lowBandLabel.setJustificationType(juce::Justification::centred);
+    lowBandLabel.setColour(juce::Label::textColourId, juce::Colour(0xff00cc66));
+    addAndMakeVisible(lowBandLabel);
+
+    lowSoloButton.setClickingTogglesState(true);
+    lowSoloButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff333344));
+    lowSoloButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xffffcc00));
+    lowSoloButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
+    lowSoloButton.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
+    addAndMakeVisible(lowSoloButton);
+    lowSoloAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+        audioProcessor.getAPVTS(), "lowSolo", lowSoloButton);
+
+    // === High Band セクション ===
+    highBandLabel.setText("High Band", juce::dontSendNotification);
+    highBandLabel.setFont(juce::Font(14.0f, juce::Font::bold));
+    highBandLabel.setJustificationType(juce::Justification::centred);
+    highBandLabel.setColour(juce::Label::textColourId, juce::Colour(0xffff9933));
+    addAndMakeVisible(highBandLabel);
+
+    highSoloButton.setClickingTogglesState(true);
+    highSoloButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff333344));
+    highSoloButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xffffcc00));
+    highSoloButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
+    highSoloButton.setColour(juce::TextButton::textColourOnId, juce::Colours::black);
+    addAndMakeVisible(highSoloButton);
+    highSoloAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+        audioProcessor.getAPVTS(), "highSolo", highSoloButton);
+
     // スペクトラムディスプレイ
     addAndMakeVisible(spectrumDisplay);
 
@@ -106,23 +138,35 @@ void BassSplitterAudioProcessorEditor::resized()
 
     // スペクトラムディスプレイ
     spectrumDisplay.setBounds(area.removeFromTop(250));
-    area.removeFromTop(10);
+    area.removeFromTop(15);
 
-    // コントロールエリアを2列に分割
+    // コントロールエリアを4列に分割
     auto controlArea = area;
-    int halfWidth = controlArea.getWidth() / 2;
+    int quarterWidth = controlArea.getWidth() / 4;
     
-    // 左側：クロスオーバーノブ
-    auto leftArea = controlArea.removeFromLeft(halfWidth);
-    freqLabel.setBounds(leftArea.removeFromTop(20));
-    leftArea.removeFromTop(5);
-    auto knobSection = leftArea.removeFromTop(110);
+    // 1列目：Low Band
+    auto col1 = controlArea.removeFromLeft(quarterWidth);
+    lowBandLabel.setBounds(col1.removeFromTop(20));
+    col1.removeFromTop(10);
+    lowSoloButton.setBounds(col1.removeFromTop(30).withSizeKeepingCentre(40, 28));
+    
+    // 2列目：クロスオーバーノブ
+    auto col2 = controlArea.removeFromLeft(quarterWidth);
+    freqLabel.setBounds(col2.removeFromTop(20));
+    col2.removeFromTop(5);
+    auto knobSection = col2.removeFromTop(110);
     crossoverSlider.setBounds(knobSection.withSizeKeepingCentre(100, 110));
     
-    // 右側：スロープ選択
-    auto rightArea = controlArea;
-    slopeLabel.setBounds(rightArea.removeFromTop(20));
-    rightArea.removeFromTop(5);
-    auto comboSection = rightArea.removeFromTop(30);
-    slopeComboBox.setBounds(comboSection.withSizeKeepingCentre(120, 28));
+    // 3列目：スロープ選択
+    auto col3 = controlArea.removeFromLeft(quarterWidth);
+    slopeLabel.setBounds(col3.removeFromTop(20));
+    col3.removeFromTop(5);
+    auto comboSection = col3.removeFromTop(30);
+    slopeComboBox.setBounds(comboSection.withSizeKeepingCentre(110, 28));
+    
+    // 4列目：High Band
+    auto col4 = controlArea;
+    highBandLabel.setBounds(col4.removeFromTop(20));
+    col4.removeFromTop(10);
+    highSoloButton.setBounds(col4.removeFromTop(30).withSizeKeepingCentre(40, 28));
 }
