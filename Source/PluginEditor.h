@@ -14,10 +14,14 @@ struct BandControls
     juce::Label nameLabel;
     juce::TextButton bypassButton{"B"};
     juce::TextButton soloButton{"S"};
+    juce::TextButton monoButton{"M"};
+    juce::Slider panSlider;
     FaderMeter faderMeter;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> soloAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> monoAttachment;
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> panAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> gainAttachment;
 };
 

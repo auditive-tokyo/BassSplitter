@@ -18,7 +18,9 @@ BassSplitterAudioProcessor::BassSplitterAudioProcessor()
     }
 
     // ピークレベルを初期化
-    for (auto& level : bandPeakLevels)
+    for (auto& level : bandPeakLevelsL)
+        level.store(0.0f);
+    for (auto& level : bandPeakLevelsR)
         level.store(0.0f);
 }
 
@@ -68,6 +70,26 @@ juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::
         // Solo
         params.push_back(std::make_unique<juce::AudioParameterBool>(
             juce::ParameterID(bandId + "Solo", 1), bandName + " Solo", false));
+
+        // Mono
+        params.push_back(std::make_unique<juce::AudioParameterBool>(
+            juce::ParameterID(bandId + "Mono", 1), bandName + " Mono", false));
+
+        // Pan (-100 = Left, 0 = Center, +100 = Right)
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(bandId + "Pan", 1),
+            bandName + " Pan",
+            juce::NormalisableRange<float>(-100.0f, 100.0f, 1.0f),
+            0.0f,
+            juce::AudioParameterFloatAttributes().withStringFromValueFunction(
+                [](float value, int)
+                {
+                    if (value < -0.5f)
+                        return juce::String(static_cast<int>(-value)) + "L";
+                    if (value > 0.5f)
+                        return juce::String(static_cast<int>(value)) + "R";
+                    return juce::String("C");
+                })));
 
         // Gain
         params.push_back(std::make_unique<juce::AudioParameterFloat>(
@@ -240,6 +262,8 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
     // バンドパラメータを取得
     std::array<bool, numBands> bypassed;
     std::array<bool, numBands> soloed;
+    std::array<bool, numBands> mono;
+    std::array<float, numBands> pans;
     std::array<float, numBands> gains;
     bool anySolo = false;
 
@@ -248,6 +272,8 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
         juce::String bandId = "band" + juce::String(i + 1);
         bypassed[static_cast<size_t>(i)] = apvts.getRawParameterValue(bandId + "Bypass")->load() > 0.5f;
         soloed[static_cast<size_t>(i)] = apvts.getRawParameterValue(bandId + "Solo")->load() > 0.5f;
+        mono[static_cast<size_t>(i)] = apvts.getRawParameterValue(bandId + "Mono")->load() > 0.5f;
+        pans[static_cast<size_t>(i)] = apvts.getRawParameterValue(bandId + "Pan")->load();
         float gainDB = apvts.getRawParameterValue(bandId + "Gain")->load();
         gains[static_cast<size_t>(i)] = juce::Decibels::decibelsToGain(gainDB);
 
@@ -314,25 +340,102 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
             }
         }
 
-        // フィルター適用後のピークレベルを計算
-        float bandPeak = 0.0f;
-        for (int ch = 0; ch < numChannels; ++ch)
+        // モノ処理: ステレオをモノにサムして両チャンネルに書き込む
+        bool isMono = mono[static_cast<size_t>(band)] && numChannels >= 2;
+        if (isMono)
         {
-            auto range = juce::FloatVectorOperations::findMinAndMax(
-                bandBuffers[static_cast<size_t>(band)].getReadPointer(ch), numSamples);
-            float chPeak = std::max(std::abs(range.getStart()), std::abs(range.getEnd()));
-            bandPeak = std::max(bandPeak, chPeak);
+            auto& bandBuffer = bandBuffers[static_cast<size_t>(band)];
+            const float* leftData = bandBuffer.getReadPointer(0);
+            const float* rightData = bandBuffer.getReadPointer(1);
+            float* leftWrite = bandBuffer.getWritePointer(0);
+            float* rightWrite = bandBuffer.getWritePointer(1);
+
+            for (int sample = 0; sample < numSamples; ++sample)
+            {
+                float monoSample = (leftData[sample] + rightData[sample]) * 0.5f;
+                leftWrite[sample] = monoSample;
+                rightWrite[sample] = monoSample;
+            }
         }
-        // ゲインを適用
-        bandPeak *= gains[static_cast<size_t>(band)];
-        bandPeakLevels[static_cast<size_t>(band)].store(bandPeak);
+
+        // Mono時: パン処理前にピークを計算（パンに関係なく一定のレベル表示）
+        float peakL = 0.0f;
+        float peakR = 0.0f;
+
+        if (isMono)
+        {
+            // モノの場合はパン前に計算（L=Rなので同じ値）
+            auto rangeL = juce::FloatVectorOperations::findMinAndMax(
+                bandBuffers[static_cast<size_t>(band)].getReadPointer(0), numSamples);
+            peakL = std::max(std::abs(rangeL.getStart()), std::abs(rangeL.getEnd()));
+            peakR = peakL; // モノなので同じ
+        }
+
+        // パン処理: 等パワーパンニング
+        if (numChannels >= 2)
+        {
+            float panValue = pans[static_cast<size_t>(band)] / 100.0f; // -1.0 to +1.0
+            // パンが0（センター）でない場合のみ処理
+            if (std::abs(panValue) > 0.001f)
+            {
+                // 等パワーパンニング: L = cos(angle), R = sin(angle)
+                // angle: 0 (left) to π/2 (right), center = π/4
+                float angle = (panValue + 1.0f) * 0.25f * juce::MathConstants<float>::pi;
+                float gainL = std::cos(angle);
+                float gainR = std::sin(angle);
+
+                auto& bandBuffer = bandBuffers[static_cast<size_t>(band)];
+                float* leftWrite = bandBuffer.getWritePointer(0);
+                float* rightWrite = bandBuffer.getWritePointer(1);
+
+                for (int sample = 0; sample < numSamples; ++sample)
+                {
+                    float left = leftWrite[sample];
+                    float right = rightWrite[sample];
+                    // モノソース（または一般的なパン）用: 両チャンネルをミックスしてパンを適用
+                    float monoMix = (left + right) * 0.5f;
+                    leftWrite[sample] = monoMix * gainL * 1.414f; // √2で補正（センターで0dB）
+                    rightWrite[sample] = monoMix * gainR * 1.414f;
+                }
+            }
+        }
+
+        // Stereo時: パン処理後にピークを計算（L/Rの実際のレベルを表示）
+        if (!isMono)
+        {
+            if (numChannels >= 1)
+            {
+                auto rangeL = juce::FloatVectorOperations::findMinAndMax(
+                    bandBuffers[static_cast<size_t>(band)].getReadPointer(0), numSamples);
+                peakL = std::max(std::abs(rangeL.getStart()), std::abs(rangeL.getEnd()));
+            }
+            if (numChannels >= 2)
+            {
+                auto rangeR = juce::FloatVectorOperations::findMinAndMax(
+                    bandBuffers[static_cast<size_t>(band)].getReadPointer(1), numSamples);
+                peakR = std::max(std::abs(rangeR.getStart()), std::abs(rangeR.getEnd()));
+            }
+            else
+            {
+                peakR = peakL;
+            }
+        }
+
+        // ゲインを適用してメーター用に保存
+        peakL *= gains[static_cast<size_t>(band)];
+        peakR *= gains[static_cast<size_t>(band)];
+        bandPeakLevelsL[static_cast<size_t>(band)].store(peakL);
+        bandPeakLevelsR[static_cast<size_t>(band)].store(peakR);
     }
 
     // バイパス中のバンドはピークをゼロに
     for (int band = 0; band < numBands; ++band)
     {
         if (bypassed[static_cast<size_t>(band)])
-            bandPeakLevels[static_cast<size_t>(band)].store(0.0f);
+        {
+            bandPeakLevelsL[static_cast<size_t>(band)].store(0.0f);
+            bandPeakLevelsR[static_cast<size_t>(band)].store(0.0f);
+        }
     }
 
     // 出力をミックス
@@ -442,7 +545,21 @@ float BassSplitterAudioProcessor::getBandPeakLevel(int bandIndex) const
 {
     if (bandIndex < 0 || bandIndex >= numBands)
         return 0.0f;
-    return bandPeakLevels[static_cast<size_t>(bandIndex)].load();
+    // 左右の最大値を返す
+    return std::max(bandPeakLevelsL[static_cast<size_t>(bandIndex)].load(),
+                    bandPeakLevelsR[static_cast<size_t>(bandIndex)].load());
+}
+
+void BassSplitterAudioProcessor::getBandPeakLevelStereo(int bandIndex, float& leftLevel, float& rightLevel) const
+{
+    if (bandIndex < 0 || bandIndex >= numBands)
+    {
+        leftLevel = 0.0f;
+        rightLevel = 0.0f;
+        return;
+    }
+    leftLevel = bandPeakLevelsL[static_cast<size_t>(bandIndex)].load();
+    rightLevel = bandPeakLevelsR[static_cast<size_t>(bandIndex)].load();
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

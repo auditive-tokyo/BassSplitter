@@ -46,16 +46,32 @@ FaderMeter::~FaderMeter()
     stopTimer();
 }
 
+void FaderMeter::setLevel(float leftLevel, float rightLevel)
+{
+    float dbL = linearToDB(leftLevel);
+    float dbR = linearToDB(rightLevel);
+    targetLevelL = dbToNormalized(dbL);
+    targetLevelR = dbToNormalized(dbR);
+
+    // ピークホールドは左右の最大値
+    float maxLevel = std::max(targetLevelL, targetLevelR);
+    float maxDb = std::max(dbL, dbR);
+    if (maxLevel > peakHoldLevel)
+    {
+        peakHoldLevel = maxLevel;
+        peakHoldDB = maxDb;
+    }
+}
+
 void FaderMeter::setLevel(float newLevel)
 {
-    float db = linearToDB(newLevel);
-    targetLevel = dbToNormalized(db);
+    // モノラル用：左右同じ値
+    setLevel(newLevel, newLevel);
+}
 
-    if (targetLevel > peakHoldLevel)
-    {
-        peakHoldLevel = targetLevel;
-        peakHoldDB = db;
-    }
+void FaderMeter::setMono(bool mono)
+{
+    isMono = mono;
 }
 
 void FaderMeter::resetPeakHold()
@@ -73,18 +89,29 @@ void FaderMeter::setBypassed(bool bypassed)
 {
     isBypassed = bypassed;
     if (bypassed)
-        targetLevel = 0.0f;
+    {
+        targetLevelL = 0.0f;
+        targetLevelR = 0.0f;
+    }
 }
 
 void FaderMeter::timerCallback()
 {
-    if (targetLevel > currentLevel)
-        currentLevel = currentLevel * attackCoeff + targetLevel * (1.0f - attackCoeff);
+    // 左チャンネル
+    if (targetLevelL > currentLevelL)
+        currentLevelL = currentLevelL * attackCoeff + targetLevelL * (1.0f - attackCoeff);
     else
-        currentLevel = currentLevel * releaseCoeff + targetLevel * (1.0f - releaseCoeff);
+        currentLevelL = currentLevelL * releaseCoeff + targetLevelL * (1.0f - releaseCoeff);
+    if (currentLevelL < 0.001f)
+        currentLevelL = 0.0f;
 
-    if (currentLevel < 0.001f)
-        currentLevel = 0.0f;
+    // 右チャンネル
+    if (targetLevelR > currentLevelR)
+        currentLevelR = currentLevelR * attackCoeff + targetLevelR * (1.0f - attackCoeff);
+    else
+        currentLevelR = currentLevelR * releaseCoeff + targetLevelR * (1.0f - releaseCoeff);
+    if (currentLevelR < 0.001f)
+        currentLevelR = 0.0f;
 
     repaint();
 }
@@ -220,23 +247,53 @@ void FaderMeter::paint(juce::Graphics& g)
     float meterHeight = meterBounds.getHeight();
     float meterWidth = meterBounds.getWidth();
 
-    // レベルメーター描画（フェーダーと同じ色のグラデーション）
-    float levelHeight = currentLevel * meterHeight;
-    if (levelHeight > 0.0f)
-    {
-        // フェーダーカラーをベースにしたグラデーション（下が暗め、上が明るめ）
-        juce::ColourGradient gradient(faderColour.darker(0.6f), // 下（暗め）
-                                      meterBounds.getX(),
-                                      meterBounds.getBottom(),
-                                      faderColour.brighter(0.3f), // 上（明るめ）
-                                      meterBounds.getX(),
-                                      meterBounds.getY(),
-                                      false);
-        gradient.addColour(0.5, faderColour); // 中間はそのまま
+    // グラデーション設定（フェーダーカラーベース）
+    juce::ColourGradient gradient(faderColour.darker(0.6f), // 下（暗め）
+                                  meterBounds.getX(),
+                                  meterBounds.getBottom(),
+                                  faderColour.brighter(0.3f), // 上（明るめ）
+                                  meterBounds.getX(),
+                                  meterBounds.getY(),
+                                  false);
+    gradient.addColour(0.5, faderColour); // 中間はそのまま
 
-        g.setGradientFill(gradient);
-        g.fillRoundedRectangle(
-            meterBounds.getX(), meterBounds.getBottom() - levelHeight, meterWidth, levelHeight, 2.0f);
+    if (isMono)
+    {
+        // モノモード：1本のメーター（中央）
+        float levelHeight = currentLevelL * meterHeight;
+        if (levelHeight > 0.0f)
+        {
+            g.setGradientFill(gradient);
+            g.fillRoundedRectangle(
+                meterBounds.getX(), meterBounds.getBottom() - levelHeight, meterWidth, levelHeight, 2.0f);
+        }
+    }
+    else
+    {
+        // ステレオモード：左右2本のメーター
+        float meterGap = 2.0f;
+        float singleMeterWidth = (meterWidth - meterGap) / 2.0f;
+
+        // 左チャンネル
+        float levelHeightL = currentLevelL * meterHeight;
+        if (levelHeightL > 0.0f)
+        {
+            g.setGradientFill(gradient);
+            g.fillRoundedRectangle(
+                meterBounds.getX(), meterBounds.getBottom() - levelHeightL, singleMeterWidth, levelHeightL, 2.0f);
+        }
+
+        // 右チャンネル
+        float levelHeightR = currentLevelR * meterHeight;
+        if (levelHeightR > 0.0f)
+        {
+            g.setGradientFill(gradient);
+            g.fillRoundedRectangle(meterBounds.getX() + singleMeterWidth + meterGap,
+                                   meterBounds.getBottom() - levelHeightR,
+                                   singleMeterWidth,
+                                   levelHeightR,
+                                   2.0f);
+        }
     }
 
     // dB目盛り（右側に小さく）

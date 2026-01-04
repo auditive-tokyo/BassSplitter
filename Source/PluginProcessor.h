@@ -2,9 +2,9 @@
 
 #include "DSP/SpectrumAnalyzer.h"
 
+#include <atomic>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
-#include <atomic>
 
 class BassSplitterAudioProcessor : public juce::AudioProcessor
 {
@@ -61,6 +61,9 @@ public:
     /** 各バンドのピークレベルを取得（リニア値 0.0〜1.0+） */
     float getBandPeakLevel(int bandIndex) const;
 
+    /** 各バンドの左右ピークレベルを取得（ステレオ対応） */
+    void getBandPeakLevelStereo(int bandIndex, float& leftLevel, float& rightLevel) const;
+
 private:
     // パラメータレイアウト作成
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
@@ -89,8 +92,9 @@ private:
     // バンド名（ValueTreeに保存）
     std::array<juce::String, numBands> bandNames = {"Band 1", "Band 2", "Band 3", "Band 4", "Band 5", "Band 6"};
 
-    // 各バンドのピークレベル（アトミック、GUIから読み取り）
-    std::array<std::atomic<float>, numBands> bandPeakLevels;
+    // 各バンドのピークレベル（アトミック、GUIから読み取り）- 左右別々
+    std::array<std::atomic<float>, numBands> bandPeakLevelsL;
+    std::array<std::atomic<float>, numBands> bandPeakLevelsR;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BassSplitterAudioProcessor)
 };

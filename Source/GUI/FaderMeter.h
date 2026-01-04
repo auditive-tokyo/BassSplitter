@@ -10,9 +10,7 @@
  * - 上部にピークdB値表示
  * - ドラッグでゲイン調整
  */
-class FaderMeter : public juce::Component,
-                   public juce::Timer,
-                   public juce::Label::Listener
+class FaderMeter : public juce::Component, public juce::Timer, public juce::Label::Listener
 {
 public:
     FaderMeter();
@@ -29,8 +27,14 @@ public:
     // Label::Listener
     void labelTextChanged(juce::Label* labelThatHasChanged) override;
 
-    /** 現在のピークレベルを設定（リニア値） */
+    /** 現在のピークレベルを設定（リニア値、ステレオ） */
+    void setLevel(float leftLevel, float rightLevel);
+
+    /** 現在のピークレベルを設定（リニア値、モノラル） */
     void setLevel(float newLevel);
+
+    /** モノモードを設定 */
+    void setMono(bool mono);
 
     /** ピークホールドをリセット */
     void resetPeakHold();
@@ -51,14 +55,17 @@ private:
     // dB値入力用ラベル（クリックで編集可能）
     juce::Label dbValueLabel;
 
-    // レベルメーター関連
-    float currentLevel = 0.0f;      // 現在の表示レベル（減衰後）
-    float targetLevel = 0.0f;       // 目標レベル
-    float peakHoldLevel = 0.0f;     // ピークホールド値
-    float peakHoldDB = -70.0f;      // ピークホールドのdB値
+    // レベルメーター関連（左右別々）
+    float currentLevelL = 0.0f; // 左チャンネル現在の表示レベル
+    float currentLevelR = 0.0f; // 右チャンネル現在の表示レベル
+    float targetLevelL = 0.0f;  // 左チャンネル目標レベル
+    float targetLevelR = 0.0f;  // 右チャンネル目標レベル
+    float peakHoldLevel = 0.0f; // ピークホールド値（L/R最大）
+    float peakHoldDB = -70.0f;  // ピークホールドのdB値
 
     juce::Colour faderColour = juce::Colour(0xff4a90d9);
     bool isBypassed = false;
+    bool isMono = false; // モノモードフラグ
 
     // 減衰設定
     static constexpr float attackCoeff = 0.9f;

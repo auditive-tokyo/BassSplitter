@@ -133,6 +133,28 @@ void BassSplitterAudioProcessorEditor::setupBandControls(int bandIndex)
     controls.soloAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         audioProcessor.getAPVTS(), bandId + "Solo", controls.soloButton);
 
+    // モノボタン
+    controls.monoButton.setClickingTogglesState(true);
+    controls.monoButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff333344));
+    controls.monoButton.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff66aaff));
+    controls.monoButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
+    controls.monoButton.setColour(juce::TextButton::textColourOnId, juce::Colours::white);
+    addAndMakeVisible(controls.monoButton);
+    controls.monoAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
+        audioProcessor.getAPVTS(), bandId + "Mono", controls.monoButton);
+
+    // パンスライダー（横向き）
+    controls.panSlider.setSliderStyle(juce::Slider::LinearHorizontal);
+    controls.panSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 40, 14);
+    controls.panSlider.setColour(juce::Slider::trackColourId, juce::Colour(0xff333344));
+    controls.panSlider.setColour(juce::Slider::thumbColourId, bandColour);
+    controls.panSlider.setColour(juce::Slider::textBoxTextColourId, juce::Colours::lightgrey);
+    controls.panSlider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff0d0d1a));
+    controls.panSlider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0xff333344));
+    addAndMakeVisible(controls.panSlider);
+    controls.panAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+        audioProcessor.getAPVTS(), bandId + "Pan", controls.panSlider);
+
     // フェーダーメーター（一体型）
     controls.faderMeter.setColour(bandColour);
     addAndMakeVisible(controls.faderMeter);
@@ -182,17 +204,24 @@ void BassSplitterAudioProcessorEditor::updateLevelMeters()
     for (int i = 0; i < BassSplitterAudioProcessor::numBands; ++i)
     {
         auto& controls = bandControls[static_cast<size_t>(i)];
+        juce::String bandId = "band" + juce::String(i + 1);
 
         // バイパス状態を確認
-        auto* bypassParam = audioProcessor.getAPVTS().getRawParameterValue("band" + juce::String(i + 1) + "Bypass");
+        auto* bypassParam = audioProcessor.getAPVTS().getRawParameterValue(bandId + "Bypass");
         bool bypassed = bypassParam->load() > 0.5f;
         controls.faderMeter.setBypassed(bypassed);
 
+        // モノ状態を確認
+        auto* monoParam = audioProcessor.getAPVTS().getRawParameterValue(bandId + "Mono");
+        bool mono = monoParam->load() > 0.5f;
+        controls.faderMeter.setMono(mono);
+
         if (!bypassed)
         {
-            // ピークレベルを取得してメーターに設定
-            float peakLevel = audioProcessor.getBandPeakLevel(i);
-            controls.faderMeter.setLevel(peakLevel);
+            // ステレオピークレベルを取得してメーターに設定
+            float peakL, peakR;
+            audioProcessor.getBandPeakLevelStereo(i, peakL, peakR);
+            controls.faderMeter.setLevel(peakL, peakR);
         }
     }
 }
@@ -245,11 +274,16 @@ void BassSplitterAudioProcessorEditor::resized()
         bandArea.removeFromTop(5);
 
         auto buttonArea = bandArea.removeFromTop(25);
-        int buttonWidth = buttonArea.getWidth() / 2;
-        controls.bypassButton.setBounds(buttonArea.removeFromLeft(buttonWidth).reduced(3, 0));
-        controls.soloButton.setBounds(buttonArea.reduced(3, 0));
+        int buttonWidth = buttonArea.getWidth() / 3;
+        controls.bypassButton.setBounds(buttonArea.removeFromLeft(buttonWidth).reduced(2, 0));
+        controls.soloButton.setBounds(buttonArea.removeFromLeft(buttonWidth).reduced(2, 0));
+        controls.monoButton.setBounds(buttonArea.reduced(2, 0));
 
         bandArea.removeFromTop(5);
+
+        // パンスライダー
+        controls.panSlider.setBounds(bandArea.removeFromTop(40).reduced(2, 0));
+        bandArea.removeFromTop(3);
 
         // FaderMeter（フェーダーとレベルメーター一体型）
         controls.faderMeter.setBounds(bandArea.reduced(4, 0));
