@@ -65,16 +65,10 @@ float SpectrumDisplay::xToFrequency(float x) const
 
 juce::Colour SpectrumDisplay::getBandColour(int bandIndex) const
 {
-    // 各バンドに異なる色を割り当て
-    static const std::array<juce::Colour, numBands> colours = {
-        juce::Colour(0xffff6666), // Band 1: 赤系 (Sub)
-        juce::Colour(0xffff9933), // Band 2: オレンジ系 (Low)
-        juce::Colour(0xffffcc33), // Band 3: 黄色系 (Low-Mid)
-        juce::Colour(0xff66cc66), // Band 4: 緑系 (Mid)
-        juce::Colour(0xff33cccc), // Band 5: シアン系 (High-Mid)
-        juce::Colour(0xff9999ff)  // Band 6: 紫系 (High)
-    };
-    return colours[static_cast<size_t>(bandIndex)];
+    // 各バンドに異なる色を割り当て（深い青→ライトグリーンのグラデーション、フェーダーと同じ）
+    // Band 1 (index 0) = Deep Blue (hue 0.65), Band 6 (index 5) = Light Green (hue 0.35)
+    float hue = 0.65f - (static_cast<float>(bandIndex) / (numBands - 1)) * 0.30f;
+    return juce::Colour::fromHSV(hue, 0.75f, 0.95f, 1.0f);
 }
 
 void SpectrumDisplay::paint(juce::Graphics& g)

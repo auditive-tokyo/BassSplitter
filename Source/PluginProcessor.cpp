@@ -16,6 +16,10 @@ BassSplitterAudioProcessor::BassSplitterAudioProcessor()
         for (auto& filter : crossover.highpass)
             filter.setType(juce::dsp::LinkwitzRileyFilterType::highpass);
     }
+
+    // ピークレベルを初期化
+    for (auto& level : bandPeakLevels)
+        level.store(0.0f);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::createParameterLayout()
@@ -309,6 +313,26 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
                 crossoverFilters[static_cast<size_t>(band)].lowpass[static_cast<size_t>(stage)].process(ctx);
             }
         }
+
+        // フィルター適用後のピークレベルを計算
+        float bandPeak = 0.0f;
+        for (int ch = 0; ch < numChannels; ++ch)
+        {
+            auto range = juce::FloatVectorOperations::findMinAndMax(
+                bandBuffers[static_cast<size_t>(band)].getReadPointer(ch), numSamples);
+            float chPeak = std::max(std::abs(range.getStart()), std::abs(range.getEnd()));
+            bandPeak = std::max(bandPeak, chPeak);
+        }
+        // ゲインを適用
+        bandPeak *= gains[static_cast<size_t>(band)];
+        bandPeakLevels[static_cast<size_t>(band)].store(bandPeak);
+    }
+
+    // バイパス中のバンドはピークをゼロに
+    for (int band = 0; band < numBands; ++band)
+    {
+        if (bypassed[static_cast<size_t>(band)])
+            bandPeakLevels[static_cast<size_t>(band)].store(0.0f);
     }
 
     // 出力をミックス
@@ -412,6 +436,13 @@ void BassSplitterAudioProcessor::setBandName(int bandIndex, const juce::String& 
 {
     if (bandIndex >= 0 && bandIndex < numBands)
         bandNames[static_cast<size_t>(bandIndex)] = name;
+}
+
+float BassSplitterAudioProcessor::getBandPeakLevel(int bandIndex) const
+{
+    if (bandIndex < 0 || bandIndex >= numBands)
+        return 0.0f;
+    return bandPeakLevels[static_cast<size_t>(bandIndex)].load();
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

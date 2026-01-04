@@ -74,13 +74,23 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
     // スペクトラムディスプレイ
     addAndMakeVisible(spectrumDisplay);
 
-    // タイマー開始（スペクトラムディスプレイの更新用）
-    startTimerHz(30);
+    // ピークリセットボタン
+    resetPeaksButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff333344));
+    resetPeaksButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
+    resetPeaksButton.onClick = [this]()
+    {
+        for (auto& controls : bandControls)
+            controls.faderMeter.resetPeakHold();
+    };
+    addAndMakeVisible(resetPeaksButton);
+
+    // タイマー開始（スペクトラムディスプレイとレベルメーター更新用）
+    startTimerHz(60);
 
     // 初期状態を設定
     updateSpectrumDisplay();
 
-    setSize(1000, 700);
+    setSize(1000, 750);
 }
 
 void BassSplitterAudioProcessorEditor::setupBandControls(int bandIndex)
@@ -88,9 +98,10 @@ void BassSplitterAudioProcessorEditor::setupBandControls(int bandIndex)
     auto& controls = bandControls[static_cast<size_t>(bandIndex)];
     juce::String bandId = "band" + juce::String(bandIndex + 1);
 
-    // バンドカラー（グラデーション：低域は緑、高域はオレンジ）
-    float hue = 0.3f - (static_cast<float>(bandIndex) / (BassSplitterAudioProcessor::numBands - 1)) * 0.2f;
-    juce::Colour bandColour = juce::Colour::fromHSV(hue, 0.7f, 0.9f, 1.0f);
+    // バンドカラー（グラデーション：左は深い青、右はライトグリーン）
+    // Band 1 (index 0) = Deep Blue (hue 0.65), Band 6 (index 5) = Light Green (hue 0.35)
+    float hue = 0.65f - (static_cast<float>(bandIndex) / (BassSplitterAudioProcessor::numBands - 1)) * 0.30f;
+    juce::Colour bandColour = juce::Colour::fromHSV(hue, 0.75f, 0.95f, 1.0f);
 
     // 名前ラベル
     controls.nameLabel.setText(audioProcessor.getBandName(bandIndex), juce::dontSendNotification);
@@ -122,25 +133,11 @@ void BassSplitterAudioProcessorEditor::setupBandControls(int bandIndex)
     controls.soloAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         audioProcessor.getAPVTS(), bandId + "Solo", controls.soloButton);
 
-    // ゲインスライダー
-    controls.gainSlider.setSliderStyle(juce::Slider::LinearVertical);
-    controls.gainSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 50, 18);
-    controls.gainSlider.setColour(juce::Slider::trackColourId, bandColour);
-    controls.gainSlider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
-    controls.gainSlider.setColour(juce::Slider::textBoxTextColourId, bandColour);
-    controls.gainSlider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff0d0d1a));
-    controls.gainSlider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0xff333344));
-    controls.gainSlider.setDoubleClickReturnValue(true, 0.0);
-    addAndMakeVisible(controls.gainSlider);
+    // フェーダーメーター（一体型）
+    controls.faderMeter.setColour(bandColour);
+    addAndMakeVisible(controls.faderMeter);
     controls.gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        audioProcessor.getAPVTS(), bandId + "Gain", controls.gainSlider);
-
-    // ゲインラベル
-    controls.gainLabel.setText("Gain", juce::dontSendNotification);
-    controls.gainLabel.setFont(juce::Font(10.0f));
-    controls.gainLabel.setJustificationType(juce::Justification::centred);
-    controls.gainLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
-    addAndMakeVisible(controls.gainLabel);
+        audioProcessor.getAPVTS(), bandId + "Gain", controls.faderMeter.getSlider());
 }
 
 BassSplitterAudioProcessorEditor::~BassSplitterAudioProcessorEditor()
@@ -152,6 +149,7 @@ BassSplitterAudioProcessorEditor::~BassSplitterAudioProcessorEditor()
 void BassSplitterAudioProcessorEditor::timerCallback()
 {
     updateSpectrumDisplay();
+    updateLevelMeters();
 }
 
 void BassSplitterAudioProcessorEditor::updateSpectrumDisplay()
@@ -179,6 +177,26 @@ void BassSplitterAudioProcessorEditor::updateSpectrumDisplay()
     }
 }
 
+void BassSplitterAudioProcessorEditor::updateLevelMeters()
+{
+    for (int i = 0; i < BassSplitterAudioProcessor::numBands; ++i)
+    {
+        auto& controls = bandControls[static_cast<size_t>(i)];
+
+        // バイパス状態を確認
+        auto* bypassParam = audioProcessor.getAPVTS().getRawParameterValue("band" + juce::String(i + 1) + "Bypass");
+        bool bypassed = bypassParam->load() > 0.5f;
+        controls.faderMeter.setBypassed(bypassed);
+
+        if (!bypassed)
+        {
+            // ピークレベルを取得してメーターに設定
+            float peakLevel = audioProcessor.getBandPeakLevel(i);
+            controls.faderMeter.setLevel(peakLevel);
+        }
+    }
+}
+
 void BassSplitterAudioProcessorEditor::paint(juce::Graphics& g)
 {
     // 背景グラデーション
@@ -201,14 +219,16 @@ void BassSplitterAudioProcessorEditor::resized()
     spectrumDisplay.setBounds(area.removeFromTop(200));
     area.removeFromTop(10);
 
-    // スロープ選択（上部に配置）
+    // スロープ選択とピークリセット（上部に配置）
     auto slopeArea = area.removeFromTop(30);
     slopeLabel.setBounds(slopeArea.removeFromLeft(50));
     slopeComboBox.setBounds(slopeArea.removeFromLeft(120).reduced(5, 2));
+    slopeArea.removeFromLeft(20);  // スペース
+    resetPeaksButton.setBounds(slopeArea.removeFromLeft(80).reduced(5, 2));
     area.removeFromTop(15);
 
     // バンドとクロスオーバーを交互に配置
-    // 全体幅を11分割（6バンド + 5クロスオーバー）
+    // 全体幅を17分割（6バンド x 2 + 5クロスオーバー）
     int totalWidth = area.getWidth();
     int bandWidth = totalWidth * 2 / 17;  // バンドは少し広め
     int crossoverWidth = totalWidth / 17; // クロスオーバーは狭め
@@ -230,8 +250,9 @@ void BassSplitterAudioProcessorEditor::resized()
         controls.soloButton.setBounds(buttonArea.reduced(3, 0));
 
         bandArea.removeFromTop(5);
-        controls.gainLabel.setBounds(bandArea.removeFromTop(15));
-        controls.gainSlider.setBounds(bandArea.reduced(8, 0));
+
+        // FaderMeter（フェーダーとレベルメーター一体型）
+        controls.faderMeter.setBounds(bandArea.reduced(4, 0));
 
         // クロスオーバーコントロール（バンド間に配置、最後のバンドの後は不要）
         if (i < BassSplitterAudioProcessor::numCrossovers)

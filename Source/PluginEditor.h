@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GUI/FaderMeter.h"
 #include "GUI/SpectrumDisplay.h"
 #include "PluginProcessor.h"
 
@@ -13,8 +14,7 @@ struct BandControls
     juce::Label nameLabel;
     juce::TextButton bypassButton{"B"};
     juce::TextButton soloButton{"S"};
-    juce::Slider gainSlider;
-    juce::Label gainLabel;
+    FaderMeter faderMeter;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> soloAttachment;
@@ -42,6 +42,7 @@ private:
     void timerCallback() override;
     void setupBandControls(int bandIndex);
     void updateSpectrumDisplay();
+    void updateLevelMeters();
 
     BassSplitterAudioProcessor& audioProcessor;
 
@@ -63,6 +64,9 @@ private:
 
     // スペクトラムディスプレイ
     SpectrumDisplay spectrumDisplay;
+
+    // ピークリセットボタン
+    juce::TextButton resetPeaksButton{"Reset"};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BassSplitterAudioProcessorEditor)
 };
