@@ -26,11 +26,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::
         "Hz"                                 // 単位
     ));
 
-    // スロープパラメータ（0=12dB, 1=24dB, 2=48dB）
+    // スロープパラメータ（0=12dB, 1=24dB, 2=48dB, 3=96dB, 4=192dB）
     params.push_back(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID("slope", 1),
         "Slope",
-        juce::StringArray{ "12 dB/oct", "24 dB/oct", "48 dB/oct" },
+        juce::StringArray{ "12 dB/oct", "24 dB/oct", "48 dB/oct", "96 dB/oct", "192 dB/oct" },
         1  // デフォルト: 24dB/oct
     ));
 
@@ -120,6 +120,9 @@ void BassSplitterAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     for (auto& filter : highpassFilters)
         filter.prepare(spec);
 
+    // 補正フィルターを準備
+    compensationFilter.prepare(spec);
+
     // 初期周波数を設定
     float freq = apvts.getRawParameterValue("crossover")->load();
     for (auto& filter : lowpassFilters)
@@ -137,6 +140,7 @@ void BassSplitterAudioProcessor::releaseResources()
         filter.reset();
     for (auto& filter : highpassFilters)
         filter.reset();
+    compensationFilter.reset();
 }
 
 bool BassSplitterAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const
@@ -173,8 +177,32 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
         filter.setCutoffFrequency(freq);
 
     // スロープに応じたフィルター段数を決定
-    // 0 = 12dB/oct (1段), 1 = 24dB/oct (1段LR), 2 = 48dB/oct (2段LR)
-    int numStages = (slopeIndex == 2) ? 2 : 1;
+    // 0=12dB(1段), 1=24dB(1段), 2=48dB(2段), 3=96dB(4段), 4=192dB(8段)
+    int numStages = 1;
+    float peakGainDB = 0.0f;  // ピークEQの補正量
+    float peakQ = 0.7f;       // ピークEQのQ値
+    switch (slopeIndex)
+    {
+        case 0: numStages = 1; peakGainDB = 0.0f; break;   // 12dB/oct - 補正なし
+        case 1: numStages = 1; peakGainDB = 0.0f; break;   // 24dB/oct - 補正なし（基準）
+        case 2: numStages = 2; peakGainDB = 3.0f; peakQ = 0.7f; break;   // 48dB/oct
+        case 3: numStages = 4; peakGainDB = 6.0f; peakQ = 0.5f; break;   // 96dB/oct
+        case 4: numStages = 8; peakGainDB = 9.0f; peakQ = 0.4f; break;   // 192dB/oct
+        default: numStages = 1; peakGainDB = 0.0f; break;
+    }
+
+    // クロスオーバー付近の補正フィルターを更新
+    if (peakGainDB > 0.0f)
+    {
+        *compensationFilter.state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+            currentSampleRate, freq, peakQ, juce::Decibels::decibelsToGain(peakGainDB));
+    }
+    else
+    {
+        // 補正なしの場合はフラットに
+        *compensationFilter.state = *juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+            currentSampleRate, freq, 0.7f, 1.0f);
+    }
 
     // 未使用の出力チャンネルをクリア
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
@@ -224,23 +252,35 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
         for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
         {
+            float result;
+            
             // Solo状態に応じて出力を切り替え
             if (lowSolo && !highSolo)
             {
                 // Low Solo: Lowだけ出力
-                output[sample] = low[sample];
+                result = low[sample];
             }
             else if (highSolo && !lowSolo)
             {
                 // High Solo: Highだけ出力
-                output[sample] = high[sample];
+                result = high[sample];
             }
             else
             {
                 // 両方Soloまたは両方Off: Low + High を合成
-                output[sample] = low[sample] + high[sample];
+                result = low[sample] + high[sample];
             }
+            
+            output[sample] = result;
         }
+    }
+
+    // 補正フィルターを適用（クロスオーバー付近のディップを補正）
+    if (peakGainDB > 0.0f)
+    {
+        juce::dsp::AudioBlock<float> outputBlock(buffer);
+        juce::dsp::ProcessContextReplacing<float> context(outputBlock);
+        compensationFilter.process(context);
     }
 }
 
@@ -278,6 +318,8 @@ int BassSplitterAudioProcessor::getCurrentSlopeDB() const
         case 0: return 12;
         case 1: return 24;
         case 2: return 48;
+        case 3: return 96;
+        case 4: return 192;
         default: return 24;
     }
 }

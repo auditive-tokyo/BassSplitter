@@ -53,9 +53,12 @@ private:
     juce::AudioProcessorValueTreeState apvts;
 
     // Linkwitz-Rileyフィルター（複数段でスロープを実現）
-    // 12dB/oct = 1段, 24dB/oct = 1段(LR), 48dB/oct = 2段(LR)
-    std::array<juce::dsp::LinkwitzRileyFilter<float>, 2> lowpassFilters;
-    std::array<juce::dsp::LinkwitzRileyFilter<float>, 2> highpassFilters;
+    // 12dB/oct = 1段, 24dB/oct = 1段(LR), 48dB/oct = 2段, 96dB = 4段, 192dB = 8段
+    std::array<juce::dsp::LinkwitzRileyFilter<float>, 8> lowpassFilters;
+    std::array<juce::dsp::LinkwitzRileyFilter<float>, 8> highpassFilters;
+
+    // クロスオーバー付近のゲイン補正用ピークEQ（ステレオ）
+    juce::dsp::ProcessorDuplicator<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Coefficients<float>> compensationFilter;
 
     // スペクトラムアナライザー
     SpectrumAnalyzer spectrumAnalyzer;

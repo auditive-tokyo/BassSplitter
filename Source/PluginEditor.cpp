@@ -51,6 +51,8 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
     slopeComboBox.addItem("12 dB/oct", 1);
     slopeComboBox.addItem("24 dB/oct", 2);
     slopeComboBox.addItem("48 dB/oct", 3);
+    slopeComboBox.addItem("96 dB/oct", 4);
+    slopeComboBox.addItem("192 dB/oct", 5);
     slopeComboBox.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff0d0d1a));
     slopeComboBox.setColour(juce::ComboBox::textColourId, juce::Colour(0xff4a90d9));
     slopeComboBox.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff333344));
