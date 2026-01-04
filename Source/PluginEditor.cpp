@@ -11,14 +11,14 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
 
     // タイトルラベル
     titleLabel.setText("BassSplitter", juce::dontSendNotification);
-    titleLabel.setFont(juce::Font(24.0f, juce::Font::bold));
+    titleLabel.setFont(juce::FontOptions(24.0f, juce::Font::bold));
     titleLabel.setJustificationType(juce::Justification::centred);
     titleLabel.setColour(juce::Label::textColourId, juce::Colours::white);
     addAndMakeVisible(titleLabel);
 
     // スロープラベル
     slopeLabel.setText("Slope", juce::dontSendNotification);
-    slopeLabel.setFont(juce::Font(12.0f));
+    slopeLabel.setFont(juce::FontOptions(12.0f));
     slopeLabel.setJustificationType(juce::Justification::centred);
     slopeLabel.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
     addAndMakeVisible(slopeLabel);
@@ -56,7 +56,7 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
 
         // ラベル（どのバンド間かを表示）
         control.label.setText(juce::String(i + 1) + "-" + juce::String(i + 2), juce::dontSendNotification);
-        control.label.setFont(juce::Font(10.0f));
+        control.label.setFont(juce::FontOptions(10.0f));
         control.label.setJustificationType(juce::Justification::centred);
         control.label.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
         addAndMakeVisible(control.label);
@@ -105,7 +105,7 @@ void BassSplitterAudioProcessorEditor::setupBandControls(int bandIndex)
 
     // 名前ラベル
     controls.nameLabel.setText(audioProcessor.getBandName(bandIndex), juce::dontSendNotification);
-    controls.nameLabel.setFont(juce::Font(12.0f, juce::Font::bold));
+    controls.nameLabel.setFont(juce::FontOptions(12.0f, juce::Font::bold));
     controls.nameLabel.setJustificationType(juce::Justification::centred);
     controls.nameLabel.setColour(juce::Label::textColourId, bandColour);
     controls.nameLabel.setEditable(true);
@@ -273,17 +273,15 @@ void BassSplitterAudioProcessorEditor::resized()
         controls.nameLabel.setBounds(bandArea.removeFromTop(20));
         bandArea.removeFromTop(5);
 
-        auto buttonArea = bandArea.removeFromTop(25);
-        int buttonWidth = buttonArea.getWidth() / 3;
-        controls.bypassButton.setBounds(buttonArea.removeFromLeft(buttonWidth).reduced(2, 0));
-        controls.soloButton.setBounds(buttonArea.removeFromLeft(buttonWidth).reduced(2, 0));
-        controls.monoButton.setBounds(buttonArea.reduced(2, 0));
-
-        bandArea.removeFromTop(5);
-
         // パンスライダー
         controls.panSlider.setBounds(bandArea.removeFromTop(40).reduced(2, 0));
         bandArea.removeFromTop(3);
+
+        // ボタン用のエリアを下から確保（縦並び：Mono, Solo, Bypass）
+        auto buttonArea = bandArea.removeFromBottom(66); // 22px x 3 buttons
+        controls.monoButton.setBounds(buttonArea.removeFromTop(22).reduced(4, 1));
+        controls.soloButton.setBounds(buttonArea.removeFromTop(22).reduced(4, 1));
+        controls.bypassButton.setBounds(buttonArea.removeFromTop(22).reduced(4, 1));
 
         // FaderMeter（フェーダーとレベルメーター一体型）
         controls.faderMeter.setBounds(bandArea.reduced(4, 0));

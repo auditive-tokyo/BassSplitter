@@ -12,9 +12,9 @@
 struct BandControls
 {
     juce::Label nameLabel;
-    juce::TextButton bypassButton{"B"};
-    juce::TextButton soloButton{"S"};
-    juce::TextButton monoButton{"M"};
+    juce::TextButton monoButton{"Mono"};
+    juce::TextButton soloButton{"Solo"};
+    juce::TextButton bypassButton{"Bypass"};
     juce::Slider panSlider;
     FaderMeter faderMeter;
 
