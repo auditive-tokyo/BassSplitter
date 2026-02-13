@@ -1,0 +1,295 @@
+# BassSplitter - Agent Documentation
+
+## プロジェクト概要
+
+6バンドマルチバンドスプリッター。各バンドに独立したゲイン、パン、モノ/ステレオ切り替え機能を搭載。
+
+## ディレクトリ構造
+
+```
+.
+├── Source/
+│   ├── DSP/                    # デジタル信号処理
+│   │   ├── SpectrumAnalyzer.cpp/h
+│   ├── GUI/                    # GUIコンポーネント
+│   │   ├── FaderMeter.cpp/h
+│   │   ├── SpectrumDisplay.cpp/h
+│   ├── PluginEditor.cpp/h      # メインGUI
+│   └── PluginProcessor.cpp/h   # オーディオ処理
+├── CMakeLists.txt              # ビルド設定
+└── compile_commands.json       # clangd用シンボリックリンク
+```
+
+## ファイル別機能説明
+
+### メインコンポーネント
+
+#### `PluginProcessor.cpp/h`
+
+- **役割**: オーディオ処理のメイン実装
+- **主要機能**:
+  - 6バンドLinkwitz-Rileyクロスオーバーフィルター (12/24/48/96/192 dB/oct)
+  - 各バンドのパラメータ管理 (Gain, Pan, Bypass, Solo, Mono)
+  - ステレオ→モノ変換 (`(L+R)*0.5`)
+  - 等パワーパンニング (cos/sin法)
+  - ステレオピークレベル計算 (メーター用)
+- **処理フロー**: フィルタリング → モノ処理 → ピーク計算(Mono時) → パン処理 → ピーク計算(Stereo時)
+- **スレッドセーフ**: `std::atomic<float>` で L/R ピークレベルを管理
+
+#### `PluginEditor.cpp/h`
+
+- **役割**: GUI全体のレイアウトと管理
+- **主要機能**:
+  - 6バンドコントロールの配置 (ネーム、パン、フェーダー、ボタン)
+  - 5つのクロスオーバー周波数コントロール (バンド間に配置)
+  - スペクトラムディスプレイの統合
+  - 60Hzタイマーでメーター更新
+- **レイアウト (上→下)**:
+  - タイトル
+  - スペクトラムディスプレイ
+  - スロープ選択 / ピークリセット
+  - 6バンド × クロスオーバーコントロール (交互配置)
+- **各バンドレイアウト (上→下)**:
+  - バンド名ラベル (編集可能)
+  - パンスライダー
+  - フェーダー+メーター
+  - Mono / Solo / Bypass ボタン (縦並び)
+
+### DSP モジュール
+
+#### `DSP/SpectrumAnalyzer.cpp/h`
+
+- **役割**: FFT処理と周波数スペクトラム解析
+- **主要機能**:
+  - 2048ポイントFFT (JUCE dsp::FFT使用)
+  - ウィンドウ関数: Hann窓
+  - マグニチュード → dB変換
+  - スムージング処理
+- **更新**: `pushSamples()` で入力 → `processFFT()` で解析
+
+### GUI コンポーネント
+
+#### `GUI/FaderMeter.cpp/h`
+
+- **役割**: Abletonスタイルのフェーダー+メーター一体型コンポーネント
+- **主要機能**:
+  - ステレオメーター表示 (L/R 2バー)
+  - モノメーター表示 (1バー)
+  - ピークホールド機能
+  - 編集可能なdB値ラベル
+  - バイパス時のグレーアウト
+- **dBレンジ**: -70dB ~ +6dB
+- **メーター色**: グリーン → イエロー → レッド (グラデーション)
+
+#### `GUI/SpectrumDisplay.cpp/h`
+
+- **役割**: リアルタイムスペクトラム + フィルターカーブ表示
+- **主要機能**:
+  - 対数スケールの周波数軸 (20Hz - 20kHz)
+  - スペクトラムのグラデーション描画
+  - 6バンドのフィルターカーブ (バンド色対応)
+  - クロスオーバー周波数の点線表示
+  - バンドバイパス時は対応カーブ非表示
+- **更新**: 30Hzタイマーで再描画
+
+## パラメータ構造
+
+### グローバル
+
+- **Slope**: 12/24/48/96/192 dB/oct (ComboBox)
+
+### クロスオーバー (5つ)
+
+- **crossover1~5**: 20Hz - 20kHz (対数スケール)
+- **デフォルト**: 80, 250, 1000, 4000, 12000 Hz
+
+### 各バンド (6つ)
+
+- **Bypass**: bool (デフォルト: Band2-5のみON)
+- **Solo**: bool
+- **Mono**: bool (ステレオ→モノ変換)
+- **Pan**: -100 (Left) ~ 0 (Center) ~ +100 (Right)
+- **Gain**: -70dB ~ +6dB (対数スケール、スキュー2.5)
+
+## バンド構成
+
+1. **Band 1** (最低域): 入力 → Lowpass[0]
+2. **Band 2-5** (中域): Highpass[N-1] → Lowpass[N]
+3. **Band 6** (最高域): 入力 → Highpass[4]
+
+## 技術的詳細
+
+### モノ処理
+- **実装箇所**: [Source/PluginProcessor.cpp](Source/PluginProcessor.cpp)
+- **処理**: ステレオ→モノ変換 `(L+R)*0.5` を両チャンネルに出力
+
+### パン処理
+- **実装箇所**: [Source/PluginProcessor.cpp](Source/PluginProcessor.cpp)
+- **方式**: 等パワーパンニング (cos/sin法、√2補正)
+
+### メーター表示ロジック
+- **実装箇所**: [Source/PluginProcessor.cpp](Source/PluginProcessor.cpp)
+- **Mono時**: パン処理**前**のレベル (パンに影響されない)
+- **Stereo時**: パン処理**後**のL/Rレベル (実際の出力レベル)
+
+### カラースキーム
+
+- **バンド色**: 深い青 (Band1, hue 0.65) → ライトグリーン (Band6, hue 0.35)
+- **背景**: ダークブルー系 (0xff1a1a2e)
+- **アクセント**: ブルー (0xff4a90d9)
+
+## ビルドシステム
+
+- **CMake**: JUCE 7.x / 8.x 対応
+- **ターゲット**: VST3, AU, Standalone
+- **GPU レンダリング**: OpenGL (エディタ全体)
+- **最適化**: ScopedNoDenormals で非正規化数を無効化
+
+### ビルドコマンド
+
+#### 開発フロー別コマンド
+
+##### 1. 初回セットアップ（プロジェクトクローン直後）
+
+```bash
+# ビルドディレクトリ作成とCMake生成
+mkdir -p build build-clangd
+cd build && cmake .. -G Xcode
+cd ../build-clangd && cmake ..
+```
+
+##### 2. 通常の開発（.cpp / .h ファイル編集後）
+
+```bash
+# ビルドのみ（最も頻繁に使用）
+cd build
+xcodebuild -scheme "BassSplitter_All" -configuration Debug build
+
+# Standaloneで起動して確認
+open BassSplitter_artefacts/Debug/Standalone/BassSplitter.app
+```
+
+##### 3. ファイル追加/削除 or CMakeLists.txt変更後
+
+```bash
+# Xcodeプロジェクト再生成 → ビルド
+cd build
+cmake .. -G Xcode
+xcodebuild -scheme "BassSplitter_All" -configuration Debug build
+
+# clangd用も更新（コード補完に必要）
+cd ../build-clangd && cmake ..
+```
+
+##### 4. プラグインをDAWにインストール
+
+```bash
+# VST3をインストール
+cp -R build/BassSplitter_artefacts/Debug/VST3/BassSplitter.vst3 ~/Library/Audio/Plug-Ins/VST3/
+
+# Audio Unitをインストール
+cp -R build/BassSplitter_artefacts/Debug/AU/BassSplitter.component ~/Library/Audio/Plug-Ins/Components/
+```
+
+**注意**: DAW側でプラグインを再スキャンする必要があります。
+
+#### よく使うワンライナー集
+
+```bash
+# 編集 → ビルド → Standalone起動
+cd build && xcodebuild -scheme "BassSplitter_All" -configuration Debug build && open BassSplitter_artefacts/Debug/Standalone/BassSplitter.app
+
+# CMakeLists.txt変更 → 再生成 → ビルド → clangd更新
+cd build && cmake .. -G Xcode && xcodebuild -scheme "BassSplitter_All" -configuration Debug build && cd ../build-clangd && cmake ..
+
+# ビルド → VST3 & AU インストール
+cd build && xcodebuild -scheme "BassSplitter_All" -configuration Debug build && cp -R BassSplitter_artefacts/Debug/VST3/BassSplitter.vst3 ~/Library/Audio/Plug-Ins/VST3/ && cp -R BassSplitter_artefacts/Debug/AU/BassSplitter.component ~/Library/Audio/Plug-Ins/Components/
+```
+
+#### クイックリファレンス
+
+| 状況 | 必要な操作 | コマンド |
+|------|-----------|---------|
+| `.cpp` / `.h` 編集 | ビルドのみ | `cd build && xcodebuild -scheme "BassSplitter_All" -configuration Debug build` |
+| ファイル追加/削除 | CMake再生成 → ビルド | `cd build && cmake .. -G Xcode && xcodebuild ...` |
+| `CMakeLists.txt` 編集 | CMake再生成 → ビルド | 同上 |
+| clangd補完が効かない | clangd用CMake更新 | `cd build-clangd && cmake ..` |
+| DAWでテスト | プラグインインストール | `cp -R build/.../BassSplitter.vst3 ~/Library/Audio/Plug-Ins/VST3/` |
+
+## 開発メモ
+
+### 既知の問題
+
+- なし (安定版)
+
+### 将来的な機能候補
+
+- Mid/Side処理モード
+- L/R単独抽出モード
+- プリセット管理
+- バンドごとのEQ追加
+
+### コード品質
+
+- **行数**: PluginProcessor ~570行、PluginEditor ~300行
+- **分割**: DSP/GUI で適切に分離済み
+- **推奨**: 800-1000行を超えたら更なる分割を検討
+
+## 参考資料
+
+- **JUCE Framework**: https://juce.com/
+- **Linkwitz-Riley Filter**: 4次バターワースフィルターのカスケード
+- **等パワーパンニング**: -3dB at center, 一定の音響パワーを保つ
+
+---
+
+## このドキュメントの更新について
+
+### 更新が必要なタイミング
+
+以下の変更があった場合、このAGENT.mdを必ず更新してください：
+
+1. **ファイル構造の変更**
+   - 新規ファイルの追加
+   - ファイルの削除
+   - ファイルの移動やリネーム
+   - ディレクトリ構造の変更
+
+2. **アーキテクチャの変更**
+   - 主要なクラスや関数の追加・削除
+   - 処理フローの大幅な変更
+   - DSP アルゴリズムの変更
+
+3. **パラメータの変更**
+   - 新パラメータの追加
+   - パラメータの削除
+   - デフォルト値やレンジの大幅な変更
+
+4. **機能の追加・削除**
+   - 新機能の実装
+   - 既存機能の削除
+   - UIレイアウトの大幅な変更
+
+### 更新手順
+
+```bash
+# 1. ディレクトリ構造を確認（プロジェクトルートで実行）
+tree -I 'build|build-clangd|.cache' -L 4 --dirsfirst
+
+# 2. AGENT.mdを開いて該当セクションを更新
+
+# 3. 変更内容を確認
+git diff AGENT.md
+```
+
+### 更新プロンプト例
+
+```
+プロジェクトに以下の変更がありました：
+- [変更内容を簡潔に記述]
+
+AGENT.mdの以下のセクションを更新してください：
+- [更新が必要なセクション名]
+```
+
+**注意**: このドキュメントは開発の指針となる重要なファイルです。常に最新の状態に保ってください。
