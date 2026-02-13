@@ -26,6 +26,9 @@ public:
     void mouseMove(const juce::MouseEvent& event) override;
     void mouseDoubleClick(const juce::MouseEvent& event) override;
 
+    // キーボード入力
+    bool keyPressed(const juce::KeyPress& key) override;
+
     /** 各バンドのEQ周波数を設定（外部からの同期） */
     void setBandEQFrequencies(int bandIndex, float highpassFreq, float lowpassFreq);
 
@@ -68,18 +71,28 @@ private:
     {
         bool isVisible = false;
         int bandIndex = -1;
-        float frequency = 0.0f;  // 周波数
-        float triggerX = 0.0f;   // トリガー時のマウスX座標
-        float triggerY = 0.0f;   // トリガー時のマウスY座標
-        float displayX = 0.0f;   // 実際の描画X座標（計算済み・固定）
-        float displayY = 0.0f;   // 実際の描画Y座標（計算済み・固定）
+        float frequency = 0.0f; // 周波数
+        float triggerX = 0.0f;  // トリガー時のマウスX座標
+        float triggerY = 0.0f;  // トリガー時のマウスY座標
+        float displayX = 0.0f;  // 実際の描画X座標（計算済み・固定）
+        float displayY = 0.0f;  // 実際の描画Y座標（計算済み・固定）
         bool canHP = true;
         bool canLP = true;
     };
     PopupState popup;
 
     // フォーカス状態
-    int focusedBand = -1;  // -1 = フォーカスなし、0-5 = バンド番号
+    int focusedBand = -1; // -1 = フォーカスなし、0-5 = バンド番号
+
+    // 周波数入力状態（右クリックで数値入力）
+    struct FrequencyInputState
+    {
+        bool isActive = false;
+        int bandIndex = -1;
+        bool isHighpass = true;
+        juce::String inputText;
+    };
+    FrequencyInputState freqInput;
 
     // ---- 座標変換 ----
     float frequencyToX(float freq) const;

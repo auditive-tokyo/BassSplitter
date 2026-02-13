@@ -3,6 +3,7 @@
 EQOverlay::EQOverlay()
 {
     setInterceptsMouseClicks(true, true);
+    setWantsKeyboardFocus(true); // キーボード入力を受け取るように設定
 }
 
 void EQOverlay::setBandEQFrequencies(int bandIndex, float highpassFreq, float lowpassFreq)
@@ -33,7 +34,7 @@ void EQOverlay::setBandBypassed(int bandIndex, bool bypassed)
 void EQOverlay::setFocusedBand(int bandIndex)
 {
     if (bandIndex == focusedBand)
-        return;  // 既に同じバンドがフォーカス中
+        return; // 既に同じバンドがフォーカス中
     focusedBand = bandIndex;
     repaint();
 }
@@ -207,6 +208,15 @@ void EQOverlay::mouseDown(const juce::MouseEvent& event)
     float mx = static_cast<float>(event.x);
     float my = static_cast<float>(event.y);
 
+    // 入力モード中の左クリック → 入力キャンセル
+    if (freqInput.isActive && !event.mods.isPopupMenu())
+    {
+        freqInput.isActive = false;
+        dragState.isDragging = false;
+        repaint();
+        return;
+    }
+
     // ポップアップが表示中ならボタンクリックを処理
     if (popup.isVisible)
     {
@@ -247,7 +257,7 @@ void EQOverlay::mouseDown(const juce::MouseEvent& event)
         // フォールスルーしてハンドル操作を試行
     }
 
-    // 既存ハンドルをドラッグ開始
+    // 既存ハンドルを検索
     int band = -1;
     bool isHP = true;
     findNearestHandle(mx, my, band, isHP);
@@ -257,14 +267,63 @@ void EQOverlay::mouseDown(const juce::MouseEvent& event)
         dragState.isDragging = true;
         dragState.bandIndex = band;
         dragState.isHighpass = isHP;
-        setFocusedBand(band);  // ハンドルドラッグ時もフォーカスを設定
+        setFocusedBand(band); // ハンドルドラッグ時もフォーカスを設定
+
+        // 右クリック → 周波数直接入力モード開始
+        if (event.mods.isPopupMenu())
+        {
+            freqInput.isActive = true;
+            freqInput.bandIndex = band;
+            freqInput.isHighpass = isHP;
+            freqInput.inputText = "";
+        }
+
         repaint();
+        return;
+    }
+
+    // ハンドルがない場合、focusedBandのカーブ上をクリック → ポップアップ表示
+    if (focusedBand >= 0 && !event.mods.isPopupMenu())
+    {
+        float freq = xToFrequency(mx);
+        float gainDB = getBandGain(focusedBand, freq);
+        float curveY = dbToY(gainDB);
+
+        if (std::abs(my - curveY) < curveHitDistance)
+        {
+            // focusedBand のカーブ上をクリック
+            popup.bandIndex = focusedBand;
+            popup.frequency = freq;
+            popup.canHP = (bandHighpassFreqs[static_cast<size_t>(focusedBand)] < 1.5f);
+            popup.canLP = (bandLowpassFreqs[static_cast<size_t>(focusedBand)] > 19998.0f);
+            popup.isVisible = true;
+
+            // ポップアップ位置を計算
+            float popupWidth = 140.0f;
+            float popupHeight = 55.0f;
+            float px = mx - popupWidth * 0.5f;
+            float py = my - popupHeight - 10.0f;
+
+            px = juce::jlimit(2.0f, static_cast<float>(getWidth()) - popupWidth - 2.0f, px);
+            if (py < 2.0f)
+                py = my + 15.0f;
+
+            popup.displayX = px;
+            popup.displayY = py;
+
+            repaint();
+            return;
+        }
     }
 }
 
 void EQOverlay::mouseDrag(const juce::MouseEvent& event)
 {
     if (!dragState.isDragging)
+        return;
+
+    // 周波数入力モード中はドラッグを無視
+    if (freqInput.isActive)
         return;
 
     float mx = static_cast<float>(event.x);
@@ -291,7 +350,9 @@ void EQOverlay::mouseDrag(const juce::MouseEvent& event)
 
 void EQOverlay::mouseUp(const juce::MouseEvent&)
 {
-    dragState.isDragging = false;
+    // 入力モード中は dragState を保持（ツールチップが消えないように）
+    if (!freqInput.isActive)
+        dragState.isDragging = false;
     repaint();
 }
 
@@ -351,9 +412,9 @@ void EQOverlay::mouseDoubleClick(const juce::MouseEvent& event)
 
     // フォーカスされたバンドのカーブ上でのみダブルクリック有効
     int band = findBandOnCurve(mx, my);
-    if (band >= 0 && (focusedBand == -1 || focusedBand == band))  // フォーカス無し or このバンドがフォーカス中
+    if (band >= 0 && (focusedBand == -1 || focusedBand == band)) // フォーカス無し or このバンドがフォーカス中
     {
-        setFocusedBand(band);  // フォーカスを設定（既に設定済みなら何もしない）
+        setFocusedBand(band); // フォーカスを設定（既に設定済みなら何もしない）
 
         float freq = xToFrequency(mx);
         float hpFreq = bandHighpassFreqs[static_cast<size_t>(band)];
@@ -366,10 +427,10 @@ void EQOverlay::mouseDoubleClick(const juce::MouseEvent& event)
         popup.isVisible = true;
         popup.bandIndex = band;
         popup.frequency = freq;
-        popup.triggerX = mx;  // トリガー座標を保存
+        popup.triggerX = mx; // トリガー座標を保存
         popup.triggerY = my;
-        popup.canHP = !hasHP;  // HPがまだ無ければ作成可
-        popup.canLP = !hasLP;  // LPがまだ無ければ作成可
+        popup.canHP = !hasHP; // HPがまだ無ければ作成可
+        popup.canLP = !hasLP; // LPがまだ無ければ作成可
 
         // ポップアップの最終表示位置を一度だけ計算して保存
         float popupWidth = 140.0f;
@@ -456,7 +517,7 @@ void EQOverlay::drawFilterCurves(juce::Graphics& g)
         float alpha = 1.0f;
         if (focusedBand >= 0 && focusedBand != band)
         {
-            alpha = 0.35f;  // 非フォーカス時は薄い
+            alpha = 0.35f; // 非フォーカス時は薄い
         }
 
         g.setColour(colour.withAlpha(alpha));
@@ -554,7 +615,24 @@ void EQOverlay::drawDragTooltip(juce::Graphics& g)
 
     g.setColour(juce::Colours::white);
     g.setFont(12.0f);
-    g.drawText(text, static_cast<int>(tx), static_cast<int>(ty), textWidth, textHeight, juce::Justification::centred);
+
+    // 入力モード中の表示
+    if (freqInput.isActive && freqInput.bandIndex == dragState.bandIndex &&
+        freqInput.isHighpass == dragState.isHighpass)
+    {
+        // テキスト入力フィールドを描画
+        g.drawText(freqInput.inputText + "_",
+                   static_cast<int>(tx),
+                   static_cast<int>(ty),
+                   textWidth,
+                   textHeight,
+                   juce::Justification::centred);
+    }
+    else
+    {
+        g.drawText(
+            text, static_cast<int>(tx), static_cast<int>(ty), textWidth, textHeight, juce::Justification::centred);
+    }
 }
 
 void EQOverlay::drawPopup(juce::Graphics& g)
@@ -637,4 +715,91 @@ void EQOverlay::drawPopup(juce::Graphics& g)
     }
     g.setFont(12.0f);
     g.drawText("LP", lpBounds.toNearestInt(), juce::Justification::centred);
+}
+
+bool EQOverlay::keyPressed(const juce::KeyPress& key)
+{
+    if (!freqInput.isActive)
+        return false;
+
+    // Escape → 入力キャンセル
+    if (key.isKeyCode(juce::KeyPress::escapeKey))
+    {
+        freqInput.isActive = false;
+        dragState.isDragging = false;
+        repaint();
+        return true;
+    }
+
+    // Enter → 入力確定
+    if (key.isKeyCode(juce::KeyPress::returnKey))
+    {
+        juce::String text = freqInput.inputText.trim();
+        if (text.isNotEmpty())
+        {
+            float freq = 0.0f;
+
+            // テキストを大文字に統一
+            juce::String upper = text.toUpperCase();
+
+            // "K" (kHz の k) を含む → kHz に変換
+            if (upper.contains("K"))
+            {
+                // "KHZ" と "K" を削除
+                text = text.removeCharacters("kKhHzZ").trim();
+                freq = text.getFloatValue() * 1000.0f;
+            }
+            else
+            {
+                // Hz を削除（単に数値のみ）
+                text = text.removeCharacters("hHzZ").trim();
+                freq = text.getFloatValue();
+            }
+
+            // 周波数の範囲をクリップ
+            freq = juce::jlimit(minFreq, maxFreq, freq);
+
+            // 周波数を設定
+            int band = freqInput.bandIndex;
+            bool isHP = freqInput.isHighpass;
+
+            if (isHP)
+            {
+                bandHighpassFreqs[static_cast<size_t>(band)] = freq;
+            }
+            else
+            {
+                bandLowpassFreqs[static_cast<size_t>(band)] = freq;
+            }
+
+            if (onEQFrequencyChanged)
+                onEQFrequencyChanged(band, isHP, freq);
+        }
+
+        freqInput.isActive = false;
+        dragState.isDragging = false;
+        repaint();
+        return true;
+    }
+
+    // Backspace / Delete → テキスト削除
+    if (key.isKeyCode(juce::KeyPress::backspaceKey) || key.isKeyCode(juce::KeyPress::deleteKey))
+    {
+        if (freqInput.inputText.isNotEmpty())
+            freqInput.inputText = freqInput.inputText.dropLastCharacters(1);
+        repaint();
+        return true;
+    }
+
+    // 数字・小数点・単位文字を許可
+    auto ch = key.getTextCharacter();
+    if (juce::CharacterFunctions::isDigit(ch) || ch == '.' || ch == 'k' || ch == 'K' || ch == 'h' || ch == 'H' ||
+        ch == 'z' || ch == 'Z')
+    {
+        freqInput.inputText += ch;
+        repaint();
+        return true;
+    }
+
+    return false;
 }
