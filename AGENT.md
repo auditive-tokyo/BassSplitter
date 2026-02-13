@@ -195,19 +195,6 @@ mkdir -p build build-clangd
 make cmake
 ```
 
-#### 開発フロー
-
-| 状況                  | コマンド                       |
-| --------------------- | ------------------------------ |
-| `.cpp` / `.h` 編集後  | `make build` または `make run` |
-| ファイル追加/削除     | `make cmake` → `make build`    |
-| `CMakeLists.txt` 編集 | `make cmake` → `make build`    |
-| DAWでテスト           | `make install` → DAW再スキャン |
-| コンパイルエラー確認  | `make check`                   |
-| 基本的なコード検査    | `make lint`                    |
-
-**注意**: `make tidy` は JUCE プロジェクトでは正常に動作しない場合があります。コード品質チェックには `make lint` を使用してください。
-
 ## 開発メモ
 
 ### 実装済み機能
@@ -223,6 +210,8 @@ make cmake
 - プリセット管理
 - Qコントロール付きパラメトリックEQ
 - AbletonのNative Pluginや3rd party製のVST3/AU Pluginをマウントできるようにする
+- JUCE UnitTestの導入（DSP/パラメータテスト）
+- SonarQubeのCI統合（静的解析の自動化）
 
 ### コード品質
 
