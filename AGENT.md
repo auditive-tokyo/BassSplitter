@@ -147,74 +147,36 @@
 
 ### ビルドコマンド
 
-#### 開発フロー別コマンド
+プロジェクトルートの [Makefile](Makefile) で開発用コマンドを提供しています。
 
-##### 1. 初回セットアップ（プロジェクトクローン直後）
+#### 使用可能なコマンド
 
 ```bash
-# ビルドディレクトリ作成とCMake生成
+make build      # ビルド
+make run        # ビルド → Standalone起動
+make install    # ビルド → VST3/AUインストール
+make cmake      # CMakeプロジェクト再生成（ファイル追加/削除時）
+make clean      # ビルドディレクトリをクリーン
+```
+
+#### 初回セットアップ
+
+```bash
+# ビルドディレクトリ作成
 mkdir -p build build-clangd
-cd build && cmake .. -G Xcode
-cd ../build-clangd && cmake ..
+
+# CMake生成
+make cmake
 ```
 
-##### 2. 通常の開発（.cpp / .h ファイル編集後）
+#### 開発フロー
 
-```bash
-# ビルドのみ（最も頻繁に使用）
-cd build
-xcodebuild -scheme "BassSplitter_All" -configuration Debug build
-
-# Standaloneで起動して確認
-open BassSplitter_artefacts/Debug/Standalone/BassSplitter.app
-```
-
-##### 3. ファイル追加/削除 or CMakeLists.txt変更後
-
-```bash
-# Xcodeプロジェクト再生成 → ビルド
-cd build
-cmake .. -G Xcode
-xcodebuild -scheme "BassSplitter_All" -configuration Debug build
-
-# clangd用も更新（コード補完に必要）
-cd ../build-clangd && cmake ..
-```
-
-##### 4. プラグインをDAWにインストール
-
-```bash
-# VST3をインストール
-cp -R build/BassSplitter_artefacts/Debug/VST3/BassSplitter.vst3 ~/Library/Audio/Plug-Ins/VST3/
-
-# Audio Unitをインストール
-cp -R build/BassSplitter_artefacts/Debug/AU/BassSplitter.component ~/Library/Audio/Plug-Ins/Components/
-```
-
-**注意**: DAW側でプラグインを再スキャンする必要があります。
-
-#### よく使うワンライナー集
-
-```bash
-# 編集 → ビルド → Standalone起動
-cd build && xcodebuild -scheme "BassSplitter_All" -configuration Debug build && open BassSplitter_artefacts/Debug/Standalone/BassSplitter.app
-
-# CMakeLists.txt変更 → 再生成 → ビルド → clangd更新
-cd build && cmake .. -G Xcode && xcodebuild -scheme "BassSplitter_All" -configuration Debug build && cd ../build-clangd && cmake ..
-
-# ビルド → VST3 & AU インストール
-cd build && xcodebuild -scheme "BassSplitter_All" -configuration Debug build && cp -R BassSplitter_artefacts/Debug/VST3/BassSplitter.vst3 ~/Library/Audio/Plug-Ins/VST3/ && cp -R BassSplitter_artefacts/Debug/AU/BassSplitter.component ~/Library/Audio/Plug-Ins/Components/
-```
-
-#### クイックリファレンス
-
-| 状況 | 必要な操作 | コマンド |
-|------|-----------|---------|
-| `.cpp` / `.h` 編集 | ビルドのみ | `cd build && xcodebuild -scheme "BassSplitter_All" -configuration Debug build` |
-| ファイル追加/削除 | CMake再生成 → ビルド | `cd build && cmake .. -G Xcode && xcodebuild ...` |
-| `CMakeLists.txt` 編集 | CMake再生成 → ビルド | 同上 |
-| clangd補完が効かない | clangd用CMake更新 | `cd build-clangd && cmake ..` |
-| DAWでテスト | プラグインインストール | `cp -R build/.../BassSplitter.vst3 ~/Library/Audio/Plug-Ins/VST3/` |
+| 状況 | コマンド |
+|------|---------|
+| `.cpp` / `.h` 編集後 | `make build` または `make run` |
+| ファイル追加/削除 | `make cmake` → `make build` |
+| `CMakeLists.txt` 編集 | `make cmake` → `make build` |
+| DAWでテスト | `make install` → DAW再スキャン |
 
 ## 開発メモ
 
