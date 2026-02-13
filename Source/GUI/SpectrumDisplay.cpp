@@ -29,10 +29,14 @@ void SpectrumDisplay::timerCallback()
     }
 }
 
-void SpectrumDisplay::setCrossoverFrequencies(const std::array<float, numCrossovers>& freqs)
+void SpectrumDisplay::setBandEQFrequencies(int bandIndex, float highpassFreq, float lowpassFreq)
 {
-    crossoverFrequencies = freqs;
-    repaint();
+    if (bandIndex >= 0 && bandIndex < numBands)
+    {
+        bandHighpassFreqs[static_cast<size_t>(bandIndex)] = highpassFreq;
+        bandLowpassFreqs[static_cast<size_t>(bandIndex)] = lowpassFreq;
+        repaint();
+    }
 }
 
 void SpectrumDisplay::setSlope(int slope)
@@ -162,38 +166,6 @@ void SpectrumDisplay::paint(juce::Graphics& g)
     // フィルターカーブを描画（6バンド）
     drawFilterCurves(g, height);
 
-    // クロスオーバーライン（アクティブなバンドの境界のみ表示）
-    float dashLengths[] = {4.0f, 4.0f};
-    g.setFont(10.0f);
-
-    for (int i = 0; i < numCrossovers; ++i)
-    {
-        // このクロスオーバーは、バンドiとバンドi+1の境界
-        // 両方のバンドがバイパスされていなければ表示
-        bool leftActive = !bandBypassed[static_cast<size_t>(i)];
-        bool rightActive = !bandBypassed[static_cast<size_t>(i + 1)];
-
-        if (leftActive || rightActive)
-        {
-            float crossoverX = frequencyToX(crossoverFrequencies[static_cast<size_t>(i)]);
-
-            // クロスオーバーライン本体（点線）
-            g.setColour(juce::Colour(0x80ffffff));
-            g.drawDashedLine(juce::Line<float>(crossoverX, 0.0f, crossoverX, height), dashLengths, 2, 1.0f);
-
-            // クロスオーバー周波数ラベル
-            float freq = crossoverFrequencies[static_cast<size_t>(i)];
-            juce::String freqText;
-            if (freq >= 1000.0f)
-                freqText = juce::String(freq / 1000.0f, 1) + "k";
-            else
-                freqText = juce::String(static_cast<int>(freq));
-
-            g.setColour(juce::Colour(0xaaffffff));
-            g.drawText(freqText, static_cast<int>(crossoverX) - 20, 3, 40, 12, juce::Justification::centred);
-        }
-    }
-
     // 0dBライン（参照線）
     auto dbToY = [height](float db)
     {
@@ -255,46 +227,28 @@ void SpectrumDisplay::drawFilterCurves(juce::Graphics& g, float height)
 
 float SpectrumDisplay::getBandGain(int bandIndex, float freq) const
 {
-    // 各バンドのゲインを計算
-    // バンド0: ローパス (< crossover[0])
-    // バンド1-4: バンドパス (crossover[i-1] < freq < crossover[i])
-    // バンド5: ハイパス (> crossover[4])
-
+    // 各バンドのハイパス・ローパスEQによるゲインを計算
     int order = slopeDB / 6; // 12->2, 24->4, 48->8, 96->16, 192->32
+
+    float hpFreq = bandHighpassFreqs[static_cast<size_t>(bandIndex)];
+    float lpFreq = bandLowpassFreqs[static_cast<size_t>(bandIndex)];
 
     float gainDB = 0.0f;
 
-    if (bandIndex == 0)
+    // ハイパスフィルター（hpFreq > 0 のときのみ適用）
+    if (hpFreq > 1.0f)
     {
-        // ローパス（最低帯域）
-        float ratio = freq / crossoverFrequencies[0];
+        float ratio = hpFreq / freq;
         float magnitude = 1.0f / std::sqrt(1.0f + std::pow(ratio, 2.0f * order));
-        gainDB = 20.0f * std::log10(std::max(magnitude, 0.0001f));
+        gainDB += 20.0f * std::log10(std::max(magnitude, 0.0001f));
     }
-    else if (bandIndex == numBands - 1)
+
+    // ローパスフィルター（lpFreq < 20kHz のときのみ適用）
+    if (lpFreq < 19999.0f)
     {
-        // ハイパス（最高帯域）
-        float ratio = crossoverFrequencies[numCrossovers - 1] / freq;
+        float ratio = freq / lpFreq;
         float magnitude = 1.0f / std::sqrt(1.0f + std::pow(ratio, 2.0f * order));
-        gainDB = 20.0f * std::log10(std::max(magnitude, 0.0001f));
-    }
-    else
-    {
-        // バンドパス（中間帯域）
-        float lowCrossover = crossoverFrequencies[static_cast<size_t>(bandIndex - 1)];
-        float highCrossover = crossoverFrequencies[static_cast<size_t>(bandIndex)];
-
-        // ハイパス成分（下側のカットオフ）
-        float hpRatio = lowCrossover / freq;
-        float hpMagnitude = 1.0f / std::sqrt(1.0f + std::pow(hpRatio, 2.0f * order));
-
-        // ローパス成分（上側のカットオフ）
-        float lpRatio = freq / highCrossover;
-        float lpMagnitude = 1.0f / std::sqrt(1.0f + std::pow(lpRatio, 2.0f * order));
-
-        // バンドパス = HP * LP
-        float magnitude = hpMagnitude * lpMagnitude;
-        gainDB = 20.0f * std::log10(std::max(magnitude, 0.0001f));
+        gainDB += 20.0f * std::log10(std::max(magnitude, 0.0001f));
     }
 
     return std::max(gainDB, minDB);

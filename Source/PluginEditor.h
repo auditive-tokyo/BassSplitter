@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GUI/EQPanel.h"
 #include "GUI/FaderMeter.h"
 #include "GUI/SpectrumDisplay.h"
 #include "PluginProcessor.h"
@@ -12,6 +13,7 @@
 struct BandControls
 {
     juce::Label nameLabel;
+    juce::TextButton eqButton{"EQ"};       // 新規：EQパネルオープン用
     juce::TextButton monoButton{"Mono"};
     juce::TextButton soloButton{"Solo"};
     juce::TextButton bypassButton{"Bypass"};
@@ -23,14 +25,6 @@ struct BandControls
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> monoAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> panAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> gainAttachment;
-};
-
-// クロスオーバーコントロール（バンド間に配置）
-struct CrossoverControl
-{
-    juce::Slider slider;
-    juce::Label label;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
 };
 
 class BassSplitterAudioProcessorEditor : public juce::AudioProcessorEditor, private juce::Timer
@@ -60,8 +54,8 @@ private:
     juce::ComboBox slopeComboBox;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> slopeAttachment;
 
-    // クロスオーバーコントロール（5つ、バンドの間に配置）
-    std::array<CrossoverControl, BassSplitterAudioProcessor::numCrossovers> crossoverControls;
+    // EQ パネル（Spectrum Display 上に Overlay）
+    std::unique_ptr<EQPanel> eqPanel;
 
     // 6バンドのコントロール
     std::array<BandControls, BassSplitterAudioProcessor::numBands> bandControls;
@@ -71,6 +65,9 @@ private:
 
     // ピークリセットボタン
     juce::TextButton resetPeaksButton{"Reset"};
+
+    // EQ パネル制御
+    void handleEQButtonClick(int bandIndex);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BassSplitterAudioProcessorEditor)
 };

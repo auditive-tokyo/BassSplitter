@@ -37,34 +37,6 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
     slopeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
         audioProcessor.getAPVTS(), "slope", slopeComboBox);
 
-    // クロスオーバーコントロール（5つ、バンド間に配置）
-    for (int i = 0; i < BassSplitterAudioProcessor::numCrossovers; ++i)
-    {
-        auto& control = crossoverControls[static_cast<size_t>(i)];
-
-        // スライダー（縦向きロータリー）
-        control.slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
-        control.slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 55, 16);
-        control.slider.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xff4a90d9));
-        control.slider.setColour(juce::Slider::rotarySliderOutlineColourId, juce::Colour(0xff333344));
-        control.slider.setColour(juce::Slider::thumbColourId, juce::Colours::white);
-        control.slider.setColour(juce::Slider::textBoxTextColourId, juce::Colour(0xff4a90d9));
-        control.slider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff0d0d1a));
-        control.slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0xff333344));
-        control.slider.setTextValueSuffix(" Hz");
-        addAndMakeVisible(control.slider);
-
-        // ラベル（どのバンド間かを表示）
-        control.label.setText(juce::String(i + 1) + "-" + juce::String(i + 2), juce::dontSendNotification);
-        control.label.setFont(juce::FontOptions(10.0f));
-        control.label.setJustificationType(juce::Justification::centred);
-        control.label.setColour(juce::Label::textColourId, juce::Colours::lightgrey);
-        addAndMakeVisible(control.label);
-
-        control.attachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-            audioProcessor.getAPVTS(), "crossover" + juce::String(i + 1), control.slider);
-    }
-
     // 6バンドのコントロールをセットアップ
     for (int i = 0; i < BassSplitterAudioProcessor::numBands; ++i)
     {
@@ -73,6 +45,11 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
 
     // スペクトラムディスプレイ
     addAndMakeVisible(spectrumDisplay);
+
+    // EQ パネル（Spectrum 上 Overlay用、後で追加してZオーダーを上に）
+    eqPanel = std::make_unique<EQPanel>(audioProcessor);
+    eqPanel->setVisible(false);
+    addAndMakeVisible(*eqPanel);
 
     // ピークリセットボタン
     resetPeaksButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff333344));
@@ -160,6 +137,16 @@ void BassSplitterAudioProcessorEditor::setupBandControls(int bandIndex)
     addAndMakeVisible(controls.faderMeter);
     controls.gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         audioProcessor.getAPVTS(), bandId + "Gain", controls.faderMeter.getSlider());
+
+    // EQボタン
+    controls.eqButton.setClickingTogglesState(false);
+    controls.eqButton.setColour(juce::TextButton::buttonColourId, bandColour.withAlpha(0.7f));
+    controls.eqButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+    addAndMakeVisible(controls.eqButton);
+    controls.eqButton.onClick = [this, bandIndex]()
+    {
+        handleEQButtonClick(bandIndex);
+    };
 }
 
 BassSplitterAudioProcessorEditor::~BassSplitterAudioProcessorEditor()
@@ -176,26 +163,22 @@ void BassSplitterAudioProcessorEditor::timerCallback()
 
 void BassSplitterAudioProcessorEditor::updateSpectrumDisplay()
 {
-    // クロスオーバー周波数を更新
-    std::array<float, BassSplitterAudioProcessor::numCrossovers> freqs;
-    for (int i = 0; i < BassSplitterAudioProcessor::numCrossovers; ++i)
-    {
-        auto* param = audioProcessor.getAPVTS().getRawParameterValue("crossover" + juce::String(i + 1));
-        freqs[static_cast<size_t>(i)] = param->load();
-    }
-    spectrumDisplay.setCrossoverFrequencies(freqs);
-
     // スロープを更新
     auto* slopeParam = audioProcessor.getAPVTS().getRawParameterValue("slope");
     int slopeIndex = static_cast<int>(slopeParam->load());
     static const int slopeValues[] = {12, 24, 48, 96, 192};
     spectrumDisplay.setSlope(slopeValues[slopeIndex]);
 
-    // 各バンドのバイパス状態を更新
+    // 各バンドのバイパス状態とEQ周波数を更新
     for (int i = 0; i < BassSplitterAudioProcessor::numBands; ++i)
     {
-        auto* bypassParam = audioProcessor.getAPVTS().getRawParameterValue("band" + juce::String(i + 1) + "Bypass");
+        juce::String bandId = "band" + juce::String(i + 1);
+        auto* bypassParam = audioProcessor.getAPVTS().getRawParameterValue(bandId + "Bypass");
         spectrumDisplay.setBandBypassed(i, bypassParam->load() > 0.5f);
+
+        float hpFreq = audioProcessor.getAPVTS().getRawParameterValue(bandId + "HighpassFreq")->load();
+        float lpFreq = audioProcessor.getAPVTS().getRawParameterValue(bandId + "LowpassFreq")->load();
+        spectrumDisplay.setBandEQFrequencies(i, hpFreq, lpFreq);
     }
 }
 
@@ -245,7 +228,13 @@ void BassSplitterAudioProcessorEditor::resized()
     area.removeFromTop(5);
 
     // スペクトラムディスプレイ
-    spectrumDisplay.setBounds(area.removeFromTop(200));
+    auto spectrumArea = area.removeFromTop(200);
+    spectrumDisplay.setBounds(spectrumArea);
+    
+    // EQパネルを Spectrum と同じ領域に配置（オーバーレイ）
+    if (eqPanel)
+        eqPanel->setBounds(spectrumArea);
+    
     area.removeFromTop(10);
 
     // スロープ選択とピークリセット（上部に配置）
@@ -256,11 +245,9 @@ void BassSplitterAudioProcessorEditor::resized()
     resetPeaksButton.setBounds(slopeArea.removeFromLeft(80).reduced(5, 2));
     area.removeFromTop(15);
 
-    // バンドとクロスオーバーを交互に配置
-    // 全体幅を17分割（6バンド x 2 + 5クロスオーバー）
+    // バンドを均等に配置（クロスオーバーなし）
     int totalWidth = area.getWidth();
-    int bandWidth = totalWidth * 2 / 17;  // バンドは少し広め
-    int crossoverWidth = totalWidth / 17; // クロスオーバーは狭め
+    int bandWidth = totalWidth / BassSplitterAudioProcessor::numBands;
 
     auto controlsArea = area;
 
@@ -272,6 +259,10 @@ void BassSplitterAudioProcessorEditor::resized()
 
         controls.nameLabel.setBounds(bandArea.removeFromTop(20));
         bandArea.removeFromTop(5);
+
+        // EQボタン（バンド名上に配置）
+        controls.eqButton.setBounds(bandArea.removeFromTop(22).reduced(4, 1));
+        bandArea.removeFromTop(3);
 
         // パンスライダー
         controls.panSlider.setBounds(bandArea.removeFromTop(40).reduced(2, 0));
@@ -285,15 +276,30 @@ void BassSplitterAudioProcessorEditor::resized()
 
         // FaderMeter（フェーダーとレベルメーター一体型）
         controls.faderMeter.setBounds(bandArea.reduced(4, 0));
+    }
+}
 
-        // クロスオーバーコントロール（バンド間に配置、最後のバンドの後は不要）
-        if (i < BassSplitterAudioProcessor::numCrossovers)
+void BassSplitterAudioProcessorEditor::handleEQButtonClick(int bandIndex)
+{
+    if (!eqPanel)
+        return;
+
+    if (eqPanel->isVisible())
+    {
+        // EQパネルが表示中：同じボタンなら非表示、違うボタンなら バンドを切り替え
+        if (eqPanel->getSelectedBand() == bandIndex)
         {
-            auto crossoverArea = controlsArea.removeFromLeft(crossoverWidth);
-            auto& crossover = crossoverControls[static_cast<size_t>(i)];
-
-            crossover.label.setBounds(crossoverArea.removeFromTop(15));
-            crossover.slider.setBounds(crossoverArea.reduced(2, 0));
+            eqPanel->setVisible(false);
         }
+        else
+        {
+            eqPanel->setSelectedBand(bandIndex);
+        }
+    }
+    else
+    {
+        // EQパネルが非表示：表示して対象バンドを選択
+        eqPanel->setSelectedBand(bandIndex);
+        eqPanel->setVisible(true);
     }
 }

@@ -7,13 +7,12 @@
 
 /**
  * SpectrumDisplay - スペクトラムアナライザーの描画コンポーネント
- * クロスオーバー周波数とフィルターカーブも視覚的に表示（6バンド対応）
+ * 各バンドのEQカーブを視覚的に表示（6バンド対応）
  */
 class SpectrumDisplay : public juce::Component, public juce::Timer
 {
 public:
     static constexpr int numBands = 6;
-    static constexpr int numCrossovers = numBands - 1;
 
     SpectrumDisplay(SpectrumAnalyzer& analyzerRef);
     ~SpectrumDisplay() override;
@@ -23,8 +22,8 @@ public:
     void timerCallback() override;
     void visibilityChanged() override;
 
-    /** クロスオーバー周波数を設定（5つ） */
-    void setCrossoverFrequencies(const std::array<float, numCrossovers>& freqs);
+    /** 各バンドのEQ周波数を設定 */
+    void setBandEQFrequencies(int bandIndex, float highpassFreq, float lowpassFreq);
 
     /** スロープを設定 (12, 24, 48, 96, 192 dB/oct) */
     void setSlope(int slopeDB);
@@ -34,7 +33,8 @@ public:
 
 private:
     SpectrumAnalyzer& analyzer;
-    std::array<float, numCrossovers> crossoverFrequencies = {80.0f, 250.0f, 1000.0f, 4000.0f, 12000.0f};
+    std::array<float, numBands> bandHighpassFreqs = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    std::array<float, numBands> bandLowpassFreqs = {20000.0f, 20000.0f, 20000.0f, 20000.0f, 20000.0f, 20000.0f};
     std::array<bool, numBands> bandBypassed = {false, true, true, true, true, false};
     int slopeDB = 24;
 

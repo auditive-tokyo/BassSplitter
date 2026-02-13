@@ -9,12 +9,12 @@ BassSplitterAudioProcessor::BassSplitterAudioProcessor()
       apvts(*this, nullptr, "Parameters", createParameterLayout())
 {
     // フィルタータイプを設定
-    for (auto& crossover : crossoverFilters)
+    for (auto& bandEQ : bandEQFilters)
     {
-        for (auto& filter : crossover.lowpass)
-            filter.setType(juce::dsp::LinkwitzRileyFilterType::lowpass);
-        for (auto& filter : crossover.highpass)
+        for (auto& filter : bandEQ.highpass)
             filter.setType(juce::dsp::LinkwitzRileyFilterType::highpass);
+        for (auto& filter : bandEQ.lowpass)
+            filter.setType(juce::dsp::LinkwitzRileyFilterType::lowpass);
     }
 
     // ピークレベルを初期化
@@ -35,18 +35,6 @@ juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::
         juce::StringArray{"12 dB/oct", "24 dB/oct", "48 dB/oct", "96 dB/oct", "192 dB/oct"},
         1 // デフォルト: 24dB/oct
         ));
-
-    // クロスオーバー周波数（5つ）
-    std::array<float, numCrossovers> defaultFreqs = {80.0f, 250.0f, 1000.0f, 4000.0f, 12000.0f};
-    for (int i = 0; i < numCrossovers; ++i)
-    {
-        params.push_back(
-            std::make_unique<juce::AudioParameterFloat>(juce::ParameterID("crossover" + juce::String(i + 1), 1),
-                                                        "Crossover " + juce::String(i + 1),
-                                                        juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.3f),
-                                                        defaultFreqs[static_cast<size_t>(i)],
-                                                        "Hz"));
-    }
 
     // ゲイン表示用のラムダ
     auto gainToString = [](float value, int)
@@ -98,6 +86,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::
             juce::NormalisableRange<float>(-70.0f, 6.0f, 0.1f, 2.5f),
             0.0f,
             juce::AudioParameterFloatAttributes().withStringFromValueFunction(gainToString)));
+
+        // Highpass EQ Frequency（0-20kHz、デフォルト0Hz = フィルタリングなし）
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(bandId + "HighpassFreq", 1),
+            bandName + " Highpass Freq",
+            juce::NormalisableRange<float>(0.0f, 20000.0f, 1.0f, 0.3f),
+            0.0f,
+            "Hz"));
+
+        // Lowpass EQ Frequency（0-20kHz、デフォルト20kHz = フィルタリングなし）
+        params.push_back(std::make_unique<juce::AudioParameterFloat>(
+            juce::ParameterID(bandId + "LowpassFreq", 1),
+            bandName + " Lowpass Freq",
+            juce::NormalisableRange<float>(0.0f, 20000.0f, 1.0f, 0.3f),
+            20000.0f,
+            "Hz"));
     }
 
     return {params.begin(), params.end()};
@@ -166,11 +170,11 @@ void BassSplitterAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     spec.numChannels = static_cast<juce::uint32>(getTotalNumInputChannels());
 
     // フィルターを準備
-    for (auto& crossover : crossoverFilters)
+    for (auto& bandEQ : bandEQFilters)
     {
-        for (auto& filter : crossover.lowpass)
+        for (auto& filter : bandEQ.highpass)
             filter.prepare(spec);
-        for (auto& filter : crossover.highpass)
+        for (auto& filter : bandEQ.lowpass)
             filter.prepare(spec);
     }
 
@@ -184,11 +188,11 @@ void BassSplitterAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
 
 void BassSplitterAudioProcessor::releaseResources()
 {
-    for (auto& crossover : crossoverFilters)
+    for (auto& bandEQ : bandEQFilters)
     {
-        for (auto& filter : crossover.lowpass)
+        for (auto& filter : bandEQ.highpass)
             filter.reset();
-        for (auto& filter : crossover.highpass)
+        for (auto& filter : bandEQ.lowpass)
             filter.reset();
     }
 }
@@ -241,22 +245,18 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
         break;
     }
 
-    // クロスオーバー周波数を取得（ソートしない - 各クロスオーバーは対応するバンド境界に固定）
-    std::array<float, numCrossovers> crossoverFreqs;
-    for (int i = 0; i < numCrossovers; ++i)
+    // 各バンドのEQ周波数を取得してフィルターに設定
+    for (int i = 0; i < numBands; ++i)
     {
-        crossoverFreqs[static_cast<size_t>(i)] = apvts.getRawParameterValue("crossover" + juce::String(i + 1))->load();
-    }
-    // 注意: ソートしない。Crossover1はBand1-2の境界、Crossover2はBand2-3の境界、など固定。
-    // ユーザーが重なりのある周波数を設定した場合は、その通りに動作する。
-
-    // フィルターに周波数を設定
-    for (int i = 0; i < numCrossovers; ++i)
-    {
-        for (auto& filter : crossoverFilters[static_cast<size_t>(i)].lowpass)
-            filter.setCutoffFrequency(crossoverFreqs[static_cast<size_t>(i)]);
-        for (auto& filter : crossoverFilters[static_cast<size_t>(i)].highpass)
-            filter.setCutoffFrequency(crossoverFreqs[static_cast<size_t>(i)]);
+        juce::String bandId = "band" + juce::String(i + 1);
+        float highpassFreq = apvts.getRawParameterValue(bandId + "HighpassFreq")->load();
+        float lowpassFreq = apvts.getRawParameterValue(bandId + "LowpassFreq")->load();
+        
+        // フィルターに周波数を設定
+        for (auto& filter : bandEQFilters[static_cast<size_t>(i)].highpass)
+            filter.setCutoffFrequency(highpassFreq);
+        for (auto& filter : bandEQFilters[static_cast<size_t>(i)].lowpass)
+            filter.setCutoffFrequency(lowpassFreq);
     }
 
     // バンドパラメータを取得
@@ -282,12 +282,7 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
     }
 
     // 各バンドを処理
-    // Band 1 (最低域): 入力 → lowpass[0]
-    // Band 2: highpass[0] → lowpass[1]
-    // Band 3: highpass[1] → lowpass[2]
-    // Band 4: highpass[2] → lowpass[3]
-    // Band 5: highpass[3] → lowpass[4]
-    // Band 6 (最高域): 入力 → highpass[4]
+    // 各バンドは独立したハイパス→ローパスのEQフィルターを持つ
 
     // バンドバッファを準備
     for (int band = 0; band < numBands; ++band)
@@ -307,37 +302,18 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
 
         juce::dsp::AudioBlock<float> block(bandBuffers[static_cast<size_t>(band)]);
 
-        if (band == 0)
+        // ハイパスフィルターを適用
+        for (int stage = 0; stage < numStages; ++stage)
         {
-            // Band 1: lowpass[0]のみ
-            for (int stage = 0; stage < numStages; ++stage)
-            {
-                juce::dsp::ProcessContextReplacing<float> ctx(block);
-                crossoverFilters[0].lowpass[static_cast<size_t>(stage)].process(ctx);
-            }
+            juce::dsp::ProcessContextReplacing<float> ctx(block);
+            bandEQFilters[static_cast<size_t>(band)].highpass[static_cast<size_t>(stage)].process(ctx);
         }
-        else if (band == numBands - 1)
+        
+        // ローパスフィルターを適用
+        for (int stage = 0; stage < numStages; ++stage)
         {
-            // Band 6: highpass[4]のみ
-            for (int stage = 0; stage < numStages; ++stage)
-            {
-                juce::dsp::ProcessContextReplacing<float> ctx(block);
-                crossoverFilters[numCrossovers - 1].highpass[static_cast<size_t>(stage)].process(ctx);
-            }
-        }
-        else
-        {
-            // 中間バンド: highpass[band-1] → lowpass[band]
-            for (int stage = 0; stage < numStages; ++stage)
-            {
-                juce::dsp::ProcessContextReplacing<float> ctx(block);
-                crossoverFilters[static_cast<size_t>(band - 1)].highpass[static_cast<size_t>(stage)].process(ctx);
-            }
-            for (int stage = 0; stage < numStages; ++stage)
-            {
-                juce::dsp::ProcessContextReplacing<float> ctx(block);
-                crossoverFilters[static_cast<size_t>(band)].lowpass[static_cast<size_t>(stage)].process(ctx);
-            }
+            juce::dsp::ProcessContextReplacing<float> ctx(block);
+            bandEQFilters[static_cast<size_t>(band)].lowpass[static_cast<size_t>(stage)].process(ctx);
         }
 
         // モノ処理: ステレオをモノにサムして両チャンネルに書き込む
@@ -521,11 +497,20 @@ int BassSplitterAudioProcessor::getCurrentSlopeDB() const
     }
 }
 
-float BassSplitterAudioProcessor::getCrossoverFrequency(int index) const
+float BassSplitterAudioProcessor::getBandHighpassFreq(int bandIndex) const
 {
-    if (index < 0 || index >= numCrossovers)
-        return 1000.0f;
-    return apvts.getRawParameterValue("crossover" + juce::String(index + 1))->load();
+    if (bandIndex < 0 || bandIndex >= numBands)
+        return 0.0f;
+    juce::String bandId = "band" + juce::String(bandIndex + 1);
+    return apvts.getRawParameterValue(bandId + "HighpassFreq")->load();
+}
+
+float BassSplitterAudioProcessor::getBandLowpassFreq(int bandIndex) const
+{
+    if (bandIndex < 0 || bandIndex >= numBands)
+        return 20000.0f;
+    juce::String bandId = "band" + juce::String(bandIndex + 1);
+    return apvts.getRawParameterValue(bandId + "LowpassFreq")->load();
 }
 
 juce::String BassSplitterAudioProcessor::getBandName(int bandIndex) const

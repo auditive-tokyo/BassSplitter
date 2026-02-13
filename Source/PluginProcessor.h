@@ -51,8 +51,9 @@ public:
     // 現在のスロープを取得（dB/oct）
     int getCurrentSlopeDB() const;
 
-    // クロスオーバー周波数を取得
-    float getCrossoverFrequency(int index) const;
+    // バンドのEQ周波数を取得
+    float getBandHighpassFreq(int bandIndex) const;
+    float getBandLowpassFreq(int bandIndex) const;
 
     // バンド名を取得/設定（ValueTreeに保存）
     juce::String getBandName(int bandIndex) const;
@@ -71,14 +72,14 @@ private:
     // パラメータ管理
     juce::AudioProcessorValueTreeState apvts;
 
-    // 各クロスオーバーポイント用のLinkwitz-Rileyフィルター
-    // 各クロスオーバーに対してローパス/ハイパスのペア（最大8段）
-    struct CrossoverFilters
+    // 各バンド用のLinkwitz-Riley EQフィルター
+    // 各バンドにハイパス/ローパスのペア（最大8段）
+    struct BandEQ
     {
-        std::array<juce::dsp::LinkwitzRileyFilter<float>, 8> lowpass;
         std::array<juce::dsp::LinkwitzRileyFilter<float>, 8> highpass;
+        std::array<juce::dsp::LinkwitzRileyFilter<float>, 8> lowpass;
     };
-    std::array<CrossoverFilters, numCrossovers> crossoverFilters;
+    std::array<BandEQ, numBands> bandEQFilters;
 
     // 各バンドの出力バッファ
     std::array<juce::AudioBuffer<float>, numBands> bandBuffers;
