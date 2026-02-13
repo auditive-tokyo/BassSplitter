@@ -31,7 +31,7 @@ target_sources(BassSplitter
         Source/DSP/SpectrumAnalyzer.cpp
         Source/GUI/SpectrumDisplay.cpp
         Source/GUI/FaderMeter.cpp
-        Source/GUI/EQPanel.cpp
+        Source/GUI/EQOverlay.cpp
 )
 
 target_compile_definitions(BassSplitter

@@ -2,7 +2,7 @@
 
 SpectrumDisplay::SpectrumDisplay(SpectrumAnalyzer& analyzerRef) : analyzer(analyzerRef)
 {
-    // タイマーは visibilityChanged で開始
+    addAndMakeVisible(eqOverlay);
 }
 
 SpectrumDisplay::~SpectrumDisplay()
@@ -12,7 +12,6 @@ SpectrumDisplay::~SpectrumDisplay()
 
 void SpectrumDisplay::visibilityChanged()
 {
-    // GUIが表示されている時だけタイマーを動かす
     if (isVisible())
         startTimerHz(30);
     else
@@ -21,7 +20,6 @@ void SpectrumDisplay::visibilityChanged()
 
 void SpectrumDisplay::timerCallback()
 {
-    // FFTデータが準備できていたら処理して再描画
     if (analyzer.isNextBlockReady())
     {
         analyzer.processFFT();
@@ -29,51 +27,15 @@ void SpectrumDisplay::timerCallback()
     }
 }
 
-void SpectrumDisplay::setBandEQFrequencies(int bandIndex, float highpassFreq, float lowpassFreq)
-{
-    if (bandIndex >= 0 && bandIndex < numBands)
-    {
-        bandHighpassFreqs[static_cast<size_t>(bandIndex)] = highpassFreq;
-        bandLowpassFreqs[static_cast<size_t>(bandIndex)] = lowpassFreq;
-        repaint();
-    }
-}
-
-void SpectrumDisplay::setSlope(int slope)
-{
-    slopeDB = slope;
-    repaint();
-}
-
-void SpectrumDisplay::setBandBypassed(int bandIndex, bool bypassed)
-{
-    if (bandIndex >= 0 && bandIndex < numBands)
-    {
-        bandBypassed[static_cast<size_t>(bandIndex)] = bypassed;
-        repaint();
-    }
-}
+// ---- 座標変換 ----
 
 float SpectrumDisplay::frequencyToX(float freq) const
 {
-    // 対数スケールで周波数をX座標に変換
     float normalized = (std::log10(freq) - std::log10(minFreq)) / (std::log10(maxFreq) - std::log10(minFreq));
     return normalized * static_cast<float>(getWidth());
 }
 
-float SpectrumDisplay::xToFrequency(float x) const
-{
-    float normalized = x / static_cast<float>(getWidth());
-    return std::pow(10.0f, normalized * (std::log10(maxFreq) - std::log10(minFreq)) + std::log10(minFreq));
-}
-
-juce::Colour SpectrumDisplay::getBandColour(int bandIndex) const
-{
-    // 各バンドに異なる色を割り当て（深い青→ライトグリーンのグラデーション、フェーダーと同じ）
-    // Band 1 (index 0) = Deep Blue (hue 0.65), Band 6 (index 5) = Light Green (hue 0.35)
-    float hue = 0.65f - (static_cast<float>(bandIndex) / (numBands - 1)) * 0.30f;
-    return juce::Colour::fromHSV(hue, 0.75f, 0.95f, 1.0f);
-}
+// ---- 描画 ----
 
 void SpectrumDisplay::paint(juce::Graphics& g)
 {
@@ -124,7 +86,6 @@ void SpectrumDisplay::paint(juce::Graphics& g)
 
     for (int i = 1; i < numBins; ++i)
     {
-        // FFTビンの周波数を計算
         float binFreq =
             static_cast<float>(i) * static_cast<float>(sampleRate) / static_cast<float>(SpectrumAnalyzer::fftSize);
 
@@ -153,26 +114,17 @@ void SpectrumDisplay::paint(juce::Graphics& g)
         fillPath.lineTo(0, height);
         fillPath.closeSubPath();
 
-        // グラデーション塗りつぶし
         g.setGradientFill(
             juce::ColourGradient(juce::Colour(0x804a90d9), 0, 0, juce::Colour(0x204a90d9), 0, height, false));
         g.fillPath(fillPath);
 
-        // スペクトラムライン
         g.setColour(juce::Colour(0xff4a90d9));
         g.strokePath(spectrumPath, juce::PathStrokeType(1.5f));
     }
 
-    // フィルターカーブを描画（6バンド）
-    drawFilterCurves(g, height);
-
     // 0dBライン（参照線）
-    auto dbToY = [height](float db)
-    {
-        float normalized = (db - minDB) / (maxDB - minDB);
-        return height * (1.0f - normalized);
-    };
-    float zeroDBY = dbToY(0.0f);
+    float dbNormalized = (0.0f - minDB) / (maxDB - minDB);
+    float zeroDBY = height * (1.0f - dbNormalized);
     g.setColour(juce::Colour(0x40ffffff));
     g.drawHorizontalLine(static_cast<int>(zeroDBY), 0.0f, width);
 
@@ -181,80 +133,8 @@ void SpectrumDisplay::paint(juce::Graphics& g)
     g.drawRect(bounds, 1.0f);
 }
 
-void SpectrumDisplay::drawFilterCurves(juce::Graphics& g, float height)
-{
-    float width = static_cast<float>(getWidth());
-
-    // dBをY座標に変換するラムダ
-    auto dbToY = [height](float db)
-    {
-        float normalized = (db - minDB) / (maxDB - minDB);
-        return height * (1.0f - normalized);
-    };
-
-    // 各バンドのカーブを描画（バイパスでないバンドのみ）
-    for (int band = 0; band < numBands; ++band)
-    {
-        if (bandBypassed[static_cast<size_t>(band)])
-            continue; // バイパスされているバンドはスキップ
-
-        juce::Path bandPath;
-        bool pathStarted = false;
-
-        for (int i = 0; i < static_cast<int>(width); i += 2)
-        {
-            float x = static_cast<float>(i);
-            float freq = xToFrequency(x);
-            float gainDB = getBandGain(band, freq);
-            float y = dbToY(gainDB);
-
-            if (!pathStarted)
-            {
-                bandPath.startNewSubPath(x, y);
-                pathStarted = true;
-            }
-            else
-            {
-                bandPath.lineTo(x, y);
-            }
-        }
-
-        // バンドの色で描画
-        g.setColour(getBandColour(band));
-        g.strokePath(bandPath, juce::PathStrokeType(2.0f));
-    }
-}
-
-float SpectrumDisplay::getBandGain(int bandIndex, float freq) const
-{
-    // 各バンドのハイパス・ローパスEQによるゲインを計算
-    int order = slopeDB / 6; // 12->2, 24->4, 48->8, 96->16, 192->32
-
-    float hpFreq = bandHighpassFreqs[static_cast<size_t>(bandIndex)];
-    float lpFreq = bandLowpassFreqs[static_cast<size_t>(bandIndex)];
-
-    float gainDB = 0.0f;
-
-    // ハイパスフィルター（hpFreq > 0 のときのみ適用）
-    if (hpFreq > 1.0f)
-    {
-        float ratio = hpFreq / freq;
-        float magnitude = 1.0f / std::sqrt(1.0f + std::pow(ratio, 2.0f * order));
-        gainDB += 20.0f * std::log10(std::max(magnitude, 0.0001f));
-    }
-
-    // ローパスフィルター（lpFreq < 20kHz のときのみ適用）
-    if (lpFreq < 19999.0f)
-    {
-        float ratio = freq / lpFreq;
-        float magnitude = 1.0f / std::sqrt(1.0f + std::pow(ratio, 2.0f * order));
-        gainDB += 20.0f * std::log10(std::max(magnitude, 0.0001f));
-    }
-
-    return std::max(gainDB, minDB);
-}
-
 void SpectrumDisplay::resized()
 {
-    // 特に処理なし
+    // EQOverlay はスペクトラム全体に重ねる
+    eqOverlay.setBounds(getLocalBounds());
 }

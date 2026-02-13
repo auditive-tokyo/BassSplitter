@@ -43,13 +43,20 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
         setupBandControls(i);
     }
 
-    // スペクトラムディスプレイ
+    // スペクトラムディスプレイ（EQOverlay内蔵）
     addAndMakeVisible(spectrumDisplay);
 
-    // EQ パネル（Spectrum 上 Overlay用、後で追加してZオーダーを上に）
-    eqPanel = std::make_unique<EQPanel>(audioProcessor);
-    eqPanel->setVisible(false);
-    addAndMakeVisible(*eqPanel);
+    // EQOverlayのコールバック→APVTSパラメータ更新
+    spectrumDisplay.getEQOverlay().onEQFrequencyChanged = [this](int bandIndex, bool isHighpass, float newFreq)
+    {
+        juce::String bandId = "band" + juce::String(bandIndex + 1);
+        juce::String paramId = bandId + (isHighpass ? "HighpassFreq" : "LowpassFreq");
+        if (auto* param = audioProcessor.getAPVTS().getParameter(paramId))
+        {
+            float normalized = param->convertTo0to1(newFreq);
+            param->setValueNotifyingHost(normalized);
+        }
+    };
 
     // ピークリセットボタン
     resetPeaksButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff333344));
@@ -75,8 +82,6 @@ void BassSplitterAudioProcessorEditor::setupBandControls(int bandIndex)
     auto& controls = bandControls[static_cast<size_t>(bandIndex)];
     juce::String bandId = "band" + juce::String(bandIndex + 1);
 
-    // バンドカラー（グラデーション：左は深い青、右はライトグリーン）
-    // Band 1 (index 0) = Deep Blue (hue 0.65), Band 6 (index 5) = Light Green (hue 0.35)
     float hue = 0.65f - (static_cast<float>(bandIndex) / (BassSplitterAudioProcessor::numBands - 1)) * 0.30f;
     juce::Colour bandColour = juce::Colour::fromHSV(hue, 0.75f, 0.95f, 1.0f);
 
@@ -99,6 +104,13 @@ void BassSplitterAudioProcessorEditor::setupBandControls(int bandIndex)
     addAndMakeVisible(controls.bypassButton);
     controls.bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         audioProcessor.getAPVTS(), bandId + "Bypass", controls.bypassButton);
+
+    // EQボタン（スペクトラム上でのバンドフォーカス）
+    controls.eqButton.setClickingTogglesState(false);
+    controls.eqButton.setColour(juce::TextButton::buttonColourId, bandColour.withAlpha(0.7f));
+    controls.eqButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+    addAndMakeVisible(controls.eqButton);
+    controls.eqButton.onClick = [this, bandIndex]() { spectrumDisplay.getEQOverlay().setFocusedBand(bandIndex); };
 
     // ソロボタン
     controls.soloButton.setClickingTogglesState(true);
@@ -137,16 +149,6 @@ void BassSplitterAudioProcessorEditor::setupBandControls(int bandIndex)
     addAndMakeVisible(controls.faderMeter);
     controls.gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         audioProcessor.getAPVTS(), bandId + "Gain", controls.faderMeter.getSlider());
-
-    // EQボタン
-    controls.eqButton.setClickingTogglesState(false);
-    controls.eqButton.setColour(juce::TextButton::buttonColourId, bandColour.withAlpha(0.7f));
-    controls.eqButton.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
-    addAndMakeVisible(controls.eqButton);
-    controls.eqButton.onClick = [this, bandIndex]()
-    {
-        handleEQButtonClick(bandIndex);
-    };
 }
 
 BassSplitterAudioProcessorEditor::~BassSplitterAudioProcessorEditor()
@@ -163,22 +165,24 @@ void BassSplitterAudioProcessorEditor::timerCallback()
 
 void BassSplitterAudioProcessorEditor::updateSpectrumDisplay()
 {
+    auto& eqOverlay = spectrumDisplay.getEQOverlay();
+
     // スロープを更新
     auto* slopeParam = audioProcessor.getAPVTS().getRawParameterValue("slope");
     int slopeIndex = static_cast<int>(slopeParam->load());
     static const int slopeValues[] = {12, 24, 48, 96, 192};
-    spectrumDisplay.setSlope(slopeValues[slopeIndex]);
+    eqOverlay.setSlope(slopeValues[slopeIndex]);
 
     // 各バンドのバイパス状態とEQ周波数を更新
     for (int i = 0; i < BassSplitterAudioProcessor::numBands; ++i)
     {
         juce::String bandId = "band" + juce::String(i + 1);
         auto* bypassParam = audioProcessor.getAPVTS().getRawParameterValue(bandId + "Bypass");
-        spectrumDisplay.setBandBypassed(i, bypassParam->load() > 0.5f);
+        eqOverlay.setBandBypassed(i, bypassParam->load() > 0.5f);
 
         float hpFreq = audioProcessor.getAPVTS().getRawParameterValue(bandId + "HighpassFreq")->load();
         float lpFreq = audioProcessor.getAPVTS().getRawParameterValue(bandId + "LowpassFreq")->load();
-        spectrumDisplay.setBandEQFrequencies(i, hpFreq, lpFreq);
+        eqOverlay.setBandEQFrequencies(i, hpFreq, lpFreq);
     }
 }
 
@@ -189,19 +193,16 @@ void BassSplitterAudioProcessorEditor::updateLevelMeters()
         auto& controls = bandControls[static_cast<size_t>(i)];
         juce::String bandId = "band" + juce::String(i + 1);
 
-        // バイパス状態を確認
         auto* bypassParam = audioProcessor.getAPVTS().getRawParameterValue(bandId + "Bypass");
         bool bypassed = bypassParam->load() > 0.5f;
         controls.faderMeter.setBypassed(bypassed);
 
-        // モノ状態を確認
         auto* monoParam = audioProcessor.getAPVTS().getRawParameterValue(bandId + "Mono");
         bool mono = monoParam->load() > 0.5f;
         controls.faderMeter.setMono(mono);
 
         if (!bypassed)
         {
-            // ステレオピークレベルを取得してメーターに設定
             float peakL, peakR;
             audioProcessor.getBandPeakLevelStereo(i, peakL, peakR);
             controls.faderMeter.setLevel(peakL, peakR);
@@ -211,10 +212,8 @@ void BassSplitterAudioProcessorEditor::updateLevelMeters()
 
 void BassSplitterAudioProcessorEditor::paint(juce::Graphics& g)
 {
-    // 背景グラデーション
     g.fillAll(juce::Colour(0xff1a1a2e));
 
-    // 装飾線
     g.setColour(juce::Colour(0xff4a90d9));
     g.drawRect(getLocalBounds().reduced(10), 2);
 }
@@ -227,25 +226,21 @@ void BassSplitterAudioProcessorEditor::resized()
     titleLabel.setBounds(area.removeFromTop(35));
     area.removeFromTop(5);
 
-    // スペクトラムディスプレイ
+    // スペクトラムディスプレイ（EQOverlay込み）
     auto spectrumArea = area.removeFromTop(200);
     spectrumDisplay.setBounds(spectrumArea);
-    
-    // EQパネルを Spectrum と同じ領域に配置（オーバーレイ）
-    if (eqPanel)
-        eqPanel->setBounds(spectrumArea);
-    
+
     area.removeFromTop(10);
 
-    // スロープ選択とピークリセット（上部に配置）
+    // スロープ選択とピークリセット
     auto slopeArea = area.removeFromTop(30);
     slopeLabel.setBounds(slopeArea.removeFromLeft(50));
     slopeComboBox.setBounds(slopeArea.removeFromLeft(120).reduced(5, 2));
-    slopeArea.removeFromLeft(20); // スペース
+    slopeArea.removeFromLeft(20);
     resetPeaksButton.setBounds(slopeArea.removeFromLeft(80).reduced(5, 2));
     area.removeFromTop(15);
 
-    // バンドを均等に配置（クロスオーバーなし）
+    // バンドを均等に配置
     int totalWidth = area.getWidth();
     int bandWidth = totalWidth / BassSplitterAudioProcessor::numBands;
 
@@ -253,53 +248,24 @@ void BassSplitterAudioProcessorEditor::resized()
 
     for (int i = 0; i < BassSplitterAudioProcessor::numBands; ++i)
     {
-        // バンドコントロール
         auto bandArea = controlsArea.removeFromLeft(bandWidth);
         auto& controls = bandControls[static_cast<size_t>(i)];
 
         controls.nameLabel.setBounds(bandArea.removeFromTop(20));
         bandArea.removeFromTop(5);
 
-        // EQボタン（バンド名上に配置）
-        controls.eqButton.setBounds(bandArea.removeFromTop(22).reduced(4, 1));
-        bandArea.removeFromTop(3);
-
         // パンスライダー
         controls.panSlider.setBounds(bandArea.removeFromTop(40).reduced(2, 0));
         bandArea.removeFromTop(3);
 
-        // ボタン用のエリアを下から確保（縦並び：Mono, Solo, Bypass）
-        auto buttonArea = bandArea.removeFromBottom(66); // 22px x 3 buttons
+        // ボタン用のエリアを下から確保（縦並び：EQ, Mono, Solo, Bypass）
+        auto buttonArea = bandArea.removeFromBottom(88); // 4ボタン × 22px
+        controls.eqButton.setBounds(buttonArea.removeFromTop(22).reduced(4, 1));
         controls.monoButton.setBounds(buttonArea.removeFromTop(22).reduced(4, 1));
         controls.soloButton.setBounds(buttonArea.removeFromTop(22).reduced(4, 1));
         controls.bypassButton.setBounds(buttonArea.removeFromTop(22).reduced(4, 1));
 
         // FaderMeter（フェーダーとレベルメーター一体型）
         controls.faderMeter.setBounds(bandArea.reduced(4, 0));
-    }
-}
-
-void BassSplitterAudioProcessorEditor::handleEQButtonClick(int bandIndex)
-{
-    if (!eqPanel)
-        return;
-
-    if (eqPanel->isVisible())
-    {
-        // EQパネルが表示中：同じボタンなら非表示、違うボタンなら バンドを切り替え
-        if (eqPanel->getSelectedBand() == bandIndex)
-        {
-            eqPanel->setVisible(false);
-        }
-        else
-        {
-            eqPanel->setSelectedBand(bandIndex);
-        }
-    }
-    else
-    {
-        // EQパネルが非表示：表示して対象バンドを選択
-        eqPanel->setSelectedBand(bandIndex);
-        eqPanel->setVisible(true);
     }
 }

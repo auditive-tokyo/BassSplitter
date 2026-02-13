@@ -1,6 +1,5 @@
 #pragma once
 
-#include "GUI/EQPanel.h"
 #include "GUI/FaderMeter.h"
 #include "GUI/SpectrumDisplay.h"
 #include "PluginProcessor.h"
@@ -13,7 +12,7 @@
 struct BandControls
 {
     juce::Label nameLabel;
-    juce::TextButton eqButton{"EQ"};       // 新規：EQパネルオープン用
+    juce::TextButton eqButton{"EQ"};
     juce::TextButton monoButton{"Mono"};
     juce::TextButton soloButton{"Solo"};
     juce::TextButton bypassButton{"Bypass"};
@@ -54,20 +53,14 @@ private:
     juce::ComboBox slopeComboBox;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> slopeAttachment;
 
-    // EQ パネル（Spectrum Display 上に Overlay）
-    std::unique_ptr<EQPanel> eqPanel;
-
     // 6バンドのコントロール
     std::array<BandControls, BassSplitterAudioProcessor::numBands> bandControls;
 
-    // スペクトラムディスプレイ
+    // スペクトラムディスプレイ（EQOverlay内蔵）
     SpectrumDisplay spectrumDisplay;
 
     // ピークリセットボタン
     juce::TextButton resetPeaksButton{"Reset"};
-
-    // EQ パネル制御
-    void handleEQButtonClick(int bandIndex);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BassSplitterAudioProcessorEditor)
 };
