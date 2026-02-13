@@ -229,8 +229,9 @@ void SpectrumDisplay::drawFilterCurves(juce::Graphics& g, float height)
         juce::Path bandPath;
         bool pathStarted = false;
 
-        for (float x = 0; x < width; x += 2.0f)
+        for (int i = 0; i < static_cast<int>(width); i += 2)
         {
+            float x = static_cast<float>(i);
             float freq = xToFrequency(x);
             float gainDB = getBandGain(band, freq);
             float y = dbToY(gainDB);
