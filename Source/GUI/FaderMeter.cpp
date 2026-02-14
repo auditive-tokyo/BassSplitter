@@ -1,5 +1,7 @@
 #include "FaderMeter.h"
 
+#include <cmath>
+
 FaderMeter::FaderMeter()
 {
     // 内部スライダーの設定（非表示、Attachment用）
@@ -135,7 +137,7 @@ float FaderMeter::dbToNormalized(float db) const
 float FaderMeter::yToDb(float y, float trackTop, float trackBottom) const
 {
     float normalized = 1.0f - (y - trackTop) / (trackBottom - trackTop);
-    return minDB + normalized * (maxDB - minDB);
+    return std::lerp(minDB, maxDB, normalized);
 }
 
 float FaderMeter::dbToY(float db, float trackTop, float trackBottom) const

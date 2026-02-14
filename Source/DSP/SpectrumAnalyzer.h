@@ -3,6 +3,7 @@
 #include <juce_dsp/juce_dsp.h>
 #include <juce_audio_basics/juce_audio_basics.h>
 #include <array>
+#include <span>
 
 /**
  * SpectrumAnalyzer - FFTを使用してオーディオ信号の周波数スペクトラムを解析
@@ -20,7 +21,7 @@ public:
     void setSampleRate(double newSampleRate);
 
     /** オーディオサンプルをプッシュ（processBlockから呼ぶ） */
-    void pushSamples(const float* samples, int numSamples);
+    void pushSamples(std::span<const float> samples);
 
     /** 次のFFTブロックが準備できているか */
     bool isNextBlockReady() const { return nextFFTBlockReady; }

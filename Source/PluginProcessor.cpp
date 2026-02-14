@@ -2,6 +2,8 @@
 
 #include "PluginEditor.h"
 
+#include <span>
+
 BassSplitterAudioProcessor::BassSplitterAudioProcessor()
     : AudioProcessor(BusesProperties()
                          .withInput("Input", juce::AudioChannelSet::stereo(), true)
@@ -218,7 +220,8 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
 
     // スペクトラムアナライザーに入力信号を送る
     if (numChannels > 0)
-        spectrumAnalyzer.pushSamples(buffer.getReadPointer(0), numSamples);
+        spectrumAnalyzer.pushSamples(
+            std::span<const float>(buffer.getReadPointer(0), static_cast<size_t>(numSamples)));
 
     auto slopeIndex = static_cast<int>(apvts.getRawParameterValue("slope")->load());
     int numStages = ProcessBlockCoordinator::getNumFilterStages(slopeIndex);

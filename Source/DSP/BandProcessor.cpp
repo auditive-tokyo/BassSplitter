@@ -1,5 +1,7 @@
 #include "BandProcessor.h"
 
+#include <numbers>
+
 void BandProcessor::processSingleBand(const BandParameters& params, const BandProcessingContext& context) const
 {
     applyEQFilters(context.bandBuffer, context.bandEQ, context.numStages);
@@ -89,8 +91,8 @@ void BandProcessor::applyPanning(juce::AudioBuffer<float>& bandBuffer,
         float left = leftWrite[sample];
         float right = rightWrite[sample];
         float monoMix = (left + right) * 0.5f;
-        leftWrite[sample] = monoMix * gainL * 1.414f; // √2で補正（センターで0dB）
-        rightWrite[sample] = monoMix * gainR * 1.414f;
+        leftWrite[sample] = monoMix * gainL * std::numbers::sqrt2_v<float>; // √2で補正（センターで0dB）
+        rightWrite[sample] = monoMix * gainR * std::numbers::sqrt2_v<float>;
     }
 }
 

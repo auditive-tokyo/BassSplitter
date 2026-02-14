@@ -117,7 +117,7 @@ private:
     static constexpr float maxDB = 6.0f;
 
     // 座標変換ヘルパー
-    EQCoordinateMapper coordinateMapper;
+    [[no_unique_address]] EQCoordinateMapper coordinateMapper;
 
     // ---- Private メンバー関数 ----
     // 描画

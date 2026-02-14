@@ -15,12 +15,11 @@ void SpectrumAnalyzer::setSampleRate(double newSampleRate)
     sampleRate = newSampleRate;
 }
 
-void SpectrumAnalyzer::pushSamples(const float* samples, int numSamples)
+void SpectrumAnalyzer::pushSamples(std::span<const float> samples)
 {
-    for (int i = 0; i < numSamples; ++i)
+    for (float sample : samples)
     {
         // モノラルにミックス（ステレオの場合は左チャンネルを使用）
-        float sample = samples[i];
 
         if (fifoIndex < fftSize)
         {

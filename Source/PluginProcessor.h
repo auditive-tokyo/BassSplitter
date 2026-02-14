@@ -96,8 +96,8 @@ private:
     std::array<std::atomic<float>, numBands> bandPeakLevelsR;
 
     // バンド処理ヘルパー
-    BandProcessor bandProcessor;
-    ProcessBlockCoordinator blockCoordinator;
+    [[no_unique_address]] BandProcessor bandProcessor;
+    [[no_unique_address]] ProcessBlockCoordinator blockCoordinator;
 
     // ---- Private メンバー関数 ----
     // パラメータレイアウト作成
