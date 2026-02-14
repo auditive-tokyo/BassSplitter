@@ -5,6 +5,9 @@ project(BassSplitter VERSION 0.1.0)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# SonarQube用のコンパイルコマンド出力
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # JUCEのパスを指定
 add_subdirectory(/Volumes/AUDITIVE/development/JUCE JUCE)
 

@@ -40,7 +40,7 @@ public:
     void resetPeakHold();
 
     /** フェーダーの色を設定 */
-    void setColour(juce::Colour colour);
+    void setFaderColour(juce::Colour colour);
 
     /** バイパス状態を設定 */
     void setBypassed(bool bypassed);
@@ -49,6 +49,7 @@ public:
     juce::Slider& getSlider() { return internalSlider; }
 
 private:
+    // ---- Private データメンバー ----
     // 内部スライダー（APVTS Attachment用）
     juce::Slider internalSlider;
 
@@ -75,6 +76,7 @@ private:
     static constexpr float minDB = -70.0f;
     static constexpr float maxDB = 6.0f;
 
+    // ---- Private メンバー関数 ----
     /** リニア値をdBに変換 */
     static float linearToDB(float linear);
 

@@ -29,18 +29,14 @@ struct BandControls
 class BassSplitterAudioProcessorEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
 public:
-    BassSplitterAudioProcessorEditor(BassSplitterAudioProcessor&);
+    explicit BassSplitterAudioProcessorEditor(BassSplitterAudioProcessor&);
     ~BassSplitterAudioProcessorEditor() override;
 
     void paint(juce::Graphics&) override;
     void resized() override;
 
 private:
-    void timerCallback() override;
-    void setupBandControls(int bandIndex);
-    void updateSpectrumDisplay();
-    void updateLevelMeters();
-
+    // ---- Private データメンバー ----
     BassSplitterAudioProcessor& audioProcessor;
 
     // GPU描画用OpenGLコンテキスト
@@ -61,6 +57,12 @@ private:
 
     // ピークリセットボタン
     juce::TextButton resetPeaksButton{"Reset"};
+
+    // ---- Private メンバー関数 ----
+    void timerCallback() override;
+    void setupBandControls(int bandIndex);
+    void updateSpectrumDisplay();
+    void updateLevelMeters();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BassSplitterAudioProcessorEditor)
 };

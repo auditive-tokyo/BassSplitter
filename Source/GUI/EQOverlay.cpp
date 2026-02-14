@@ -734,8 +734,7 @@ bool EQOverlay::keyPressed(const juce::KeyPress& key)
     // Enter → 入力確定
     if (key.isKeyCode(juce::KeyPress::returnKey))
     {
-        juce::String text = freqInput.inputText.trim();
-        if (text.isNotEmpty())
+        if (juce::String text = freqInput.inputText.trim(); text.isNotEmpty())
         {
             float freq = 0.0f;
 

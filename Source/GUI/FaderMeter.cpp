@@ -14,7 +14,7 @@ FaderMeter::FaderMeter()
     // スライダーの値が変わったら再描画とラベル更新
     internalSlider.onValueChange = [this]()
     {
-        float db = static_cast<float>(internalSlider.getValue());
+        auto db = static_cast<float>(internalSlider.getValue());
         juce::String text;
         if (db <= -69.5f)
             text = juce::String(juce::CharPointer_UTF8("-\xe2\x88\x9e"));
@@ -80,7 +80,7 @@ void FaderMeter::resetPeakHold()
     peakHoldDB = minDB;
 }
 
-void FaderMeter::setColour(juce::Colour colour)
+void FaderMeter::setFaderColour(juce::Colour colour)
 {
     faderColour = colour;
 }
@@ -260,8 +260,7 @@ void FaderMeter::paint(juce::Graphics& g)
     if (isMono)
     {
         // モノモード：1本のメーター（中央）
-        float levelHeight = currentLevelL * meterHeight;
-        if (levelHeight > 0.0f)
+        if (float levelHeight = currentLevelL * meterHeight; levelHeight > 0.0f)
         {
             g.setGradientFill(gradient);
             g.fillRoundedRectangle(
@@ -275,8 +274,7 @@ void FaderMeter::paint(juce::Graphics& g)
         float singleMeterWidth = (meterWidth - meterGap) / 2.0f;
 
         // 左チャンネル
-        float levelHeightL = currentLevelL * meterHeight;
-        if (levelHeightL > 0.0f)
+        if (float levelHeightL = currentLevelL * meterHeight; levelHeightL > 0.0f)
         {
             g.setGradientFill(gradient);
             g.fillRoundedRectangle(
@@ -284,8 +282,7 @@ void FaderMeter::paint(juce::Graphics& g)
         }
 
         // 右チャンネル
-        float levelHeightR = currentLevelR * meterHeight;
-        if (levelHeightR > 0.0f)
+        if (float levelHeightR = currentLevelR * meterHeight; levelHeightR > 0.0f)
         {
             g.setGradientFill(gradient);
             g.fillRoundedRectangle(meterBounds.getX() + singleMeterWidth + meterGap,
@@ -322,7 +319,7 @@ void FaderMeter::paint(juce::Graphics& g)
     }
 
     // フェーダーハンドル
-    float faderDb = static_cast<float>(internalSlider.getValue());
+    auto faderDb = static_cast<float>(internalSlider.getValue());
     float faderNormalized = dbToNormalized(faderDb);
     float faderY = meterBounds.getBottom() - (faderNormalized * meterHeight);
 
@@ -330,7 +327,7 @@ void FaderMeter::paint(juce::Graphics& g)
     float handleHeight = 8.0f;
     float handleY = faderY - handleHeight / 2.0f;
 
-    juce::Rectangle<float> handleRect(
+    juce::Rectangle handleRect(
         trackBounds.getX() + handleInset, handleY, trackWidth - handleInset * 2.0f, handleHeight);
 
     // ハンドル影

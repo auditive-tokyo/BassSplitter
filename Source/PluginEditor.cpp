@@ -145,7 +145,7 @@ void BassSplitterAudioProcessorEditor::setupBandControls(int bandIndex)
         audioProcessor.getAPVTS(), bandId + "Pan", controls.panSlider);
 
     // フェーダーメーター（一体型）
-    controls.faderMeter.setColour(bandColour);
+    controls.faderMeter.setFaderColour(bandColour);
     addAndMakeVisible(controls.faderMeter);
     controls.gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
         audioProcessor.getAPVTS(), bandId + "Gain", controls.faderMeter.getSlider());

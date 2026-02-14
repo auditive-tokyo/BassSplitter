@@ -12,8 +12,13 @@
 class EQOverlay : public juce::Component
 {
 public:
+    // ---- Public データメンバー ----
     static constexpr int numBands = 6;
 
+    /** EQ周波数変更時のコールバック (bandIndex, isHighpass, newFreq) */
+    std::function<void(int, bool, float)> onEQFrequencyChanged;
+
+    // ---- Public メンバー関数 ----
     EQOverlay();
     ~EQOverlay() override = default;
 
@@ -38,9 +43,6 @@ public:
     /** バンドのバイパス状態を設定 */
     void setBandBypassed(int bandIndex, bool bypassed);
 
-    /** EQ周波数変更時のコールバック (bandIndex, isHighpass, newFreq) */
-    std::function<void(int, bool, float)> onEQFrequencyChanged;
-
     /** フォーカスされたバンドを設定 (-1 = なし) */
     void setFocusedBand(int bandIndex);
 
@@ -48,6 +50,7 @@ public:
     int getFocusedBand() const { return focusedBand; }
 
 private:
+    // ---- Private データメンバー ----
     std::array<float, numBands> bandHighpassFreqs = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
     std::array<float, numBands> bandLowpassFreqs = {20000.0f, 20000.0f, 20000.0f, 20000.0f, 20000.0f, 20000.0f};
     std::array<bool, numBands> bandBypassed = {false, true, true, true, true, false};
@@ -94,22 +97,33 @@ private:
     };
     FrequencyInputState freqInput;
 
-    // ---- 座標変換 ----
+    // 定数
+    static constexpr float handleRadius = 7.0f;
+    static constexpr float handleHitRadius = 14.0f;
+    static constexpr float curveHitDistance = 8.0f;
+
+    static constexpr float minFreq = 20.0f;
+    static constexpr float maxFreq = 20000.0f;
+    static constexpr float minDB = -48.0f;
+    static constexpr float maxDB = 6.0f;
+
+    // ---- Private メンバー関数 ----
+    // 座標変換
     float frequencyToX(float freq) const;
     float xToFrequency(float x) const;
     float dbToY(float db) const;
 
-    // ---- 描画 ----
+    // 描画
     void drawFilterCurves(juce::Graphics& g);
     void drawEQHandles(juce::Graphics& g);
     void drawDragTooltip(juce::Graphics& g);
     void drawPopup(juce::Graphics& g);
 
-    // ---- EQ計算 ----
+    // EQ計算
     float getBandGain(int bandIndex, float freq) const;
     juce::Colour getBandColour(int bandIndex) const;
 
-    // ---- ハンドル検索 ----
+    // ハンドル検索
     void findNearestHandle(float mouseX, float mouseY, int& outBand, bool& outIsHighpass) const;
 
     /** カーブ線上のバンドを検索（ダブルクリック用） */
@@ -121,16 +135,6 @@ private:
     juce::Rectangle<float> getPopupLPButtonBounds() const;
     /** ポップアップの閉じるボタン領域 */
     juce::Rectangle<float> getPopupCloseBounds() const;
-
-    // 定数
-    static constexpr float handleRadius = 7.0f;
-    static constexpr float handleHitRadius = 14.0f;
-    static constexpr float curveHitDistance = 8.0f;
-
-    static constexpr float minFreq = 20.0f;
-    static constexpr float maxFreq = 20000.0f;
-    static constexpr float minDB = -48.0f;
-    static constexpr float maxDB = 6.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EQOverlay)
 };

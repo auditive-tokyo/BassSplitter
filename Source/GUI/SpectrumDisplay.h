@@ -14,7 +14,7 @@ class SpectrumDisplay : public juce::Component, public juce::Timer
 public:
     static constexpr int numBands = 6;
 
-    SpectrumDisplay(SpectrumAnalyzer& analyzerRef);
+    explicit SpectrumDisplay(SpectrumAnalyzer& analyzerRef);
     ~SpectrumDisplay() override;
 
     void paint(juce::Graphics& g) override;

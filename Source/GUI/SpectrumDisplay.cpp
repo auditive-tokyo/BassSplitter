@@ -69,7 +69,7 @@ void SpectrumDisplay::paint(juce::Graphics& g)
                                                              {5000.0f, "5k"},
                                                              {10000.0f, "10k"},
                                                              {20000.0f, "20k"}}};
-    for (auto& [freq, label] : labels)
+    for (const auto& [freq, label] : labels)
     {
         float x = frequencyToX(freq);
         g.drawText(

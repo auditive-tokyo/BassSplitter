@@ -21,6 +21,7 @@ public:
 
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
 
+    using juce::AudioProcessor::processBlock;
     void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     juce::AudioProcessorEditor* createEditor() override;
@@ -66,12 +67,7 @@ public:
     void getBandPeakLevelStereo(int bandIndex, float& leftLevel, float& rightLevel) const;
 
 private:
-    // パラメータレイアウト作成
-    juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-
-    // パラメータ管理
-    juce::AudioProcessorValueTreeState apvts;
-
+    // ---- Private 型定義 ----
     // 各バンド用のLinkwitz-Riley EQフィルター
     // 各バンドにハイパス/ローパスのペア（最大8段）
     struct BandEQ
@@ -79,6 +75,11 @@ private:
         std::array<juce::dsp::LinkwitzRileyFilter<float>, 8> highpass;
         std::array<juce::dsp::LinkwitzRileyFilter<float>, 8> lowpass;
     };
+
+    // ---- Private データメンバー ----
+    // パラメータ管理
+    juce::AudioProcessorValueTreeState apvts;
+
     std::array<BandEQ, numBands> bandEQFilters;
 
     // 各バンドの出力バッファ
@@ -96,6 +97,10 @@ private:
     // 各バンドのピークレベル（アトミック、GUIから読み取り）- 左右別々
     std::array<std::atomic<float>, numBands> bandPeakLevelsL;
     std::array<std::atomic<float>, numBands> bandPeakLevelsR;
+
+    // ---- Private メンバー関数 ----
+    // パラメータレイアウト作成
+    juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BassSplitterAudioProcessor)
 };
