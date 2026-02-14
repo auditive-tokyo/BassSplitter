@@ -63,7 +63,7 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
     // ピークリセットボタン
     resetPeaksButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff333344));
     resetPeaksButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
-    resetPeaksButton.onClick = [this]()
+    resetPeaksButton.onClick = [this]() // NOSONAR - member access requires this capture.
     {
         for (auto& controls : bandControls)
             controls.faderMeter.resetPeakHold();
