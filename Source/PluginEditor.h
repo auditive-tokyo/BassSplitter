@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GUI/FaderMeter.h"
+#include "GUI/PanControl.h"
 #include "GUI/SpectrumDisplay.h"
 #include "PluginProcessor.h"
 
@@ -16,13 +17,12 @@ struct BandControls
     juce::TextButton monoButton{"Mono"};
     juce::TextButton soloButton{"Solo"};
     juce::TextButton bypassButton{"Bypass"};
-    juce::Slider panSlider;
+    PanControl panControl;
     FaderMeter faderMeter;
 
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> bypassAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> soloAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> monoAttachment;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> panAttachment;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> gainAttachment;
 };
 

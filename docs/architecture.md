@@ -13,6 +13,7 @@
 │   │   ├── EQCoordinateMapper.cpp/h  # Coordinate mapping utility
 │   │   ├── EQOverlay.cpp/h
 │   │   ├── FaderMeter.cpp/h
+│   │   ├── PanControl.cpp/h
 │   │   ├── SpectrumDisplay.cpp/h
 │   ├── PluginEditor.cpp/h      # Main GUI
 │   └── PluginProcessor.cpp/h   # Audio processing

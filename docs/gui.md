@@ -53,6 +53,14 @@
 - dB range: -70dB to +6dB
 - Meter color: green -> yellow -> red (gradient)
 
+## GUI/PanControl.cpp/h
+
+- Role: Pan slider component
+- Responsibilities:
+  - Configure pan slider styling
+  - Manage APVTS attachment for pan parameter
+  - Expose a component-sized layout for the slider
+
 ## GUI/SpectrumDisplay.cpp/h
 
 - Role: Real-time spectrum display (FFT only)

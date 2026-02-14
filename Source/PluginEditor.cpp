@@ -135,16 +135,9 @@ void BassSplitterAudioProcessorEditor::setupBandControls(int bandIndex)
         audioProcessor.getAPVTS(), bandId + "Mono", controls.monoButton);
 
     // パンスライダー（横向き）
-    controls.panSlider.setSliderStyle(juce::Slider::LinearHorizontal);
-    controls.panSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 40, 14);
-    controls.panSlider.setColour(juce::Slider::trackColourId, juce::Colour(0xff333344));
-    controls.panSlider.setColour(juce::Slider::thumbColourId, bandColour);
-    controls.panSlider.setColour(juce::Slider::textBoxTextColourId, juce::Colours::lightgrey);
-    controls.panSlider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff0d0d1a));
-    controls.panSlider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0xff333344));
-    addAndMakeVisible(controls.panSlider);
-    controls.panAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-        audioProcessor.getAPVTS(), bandId + "Pan", controls.panSlider);
+    controls.panControl.configure(bandColour);
+    controls.panControl.attachToParameter(audioProcessor.getAPVTS(), bandId + "Pan");
+    addAndMakeVisible(controls.panControl);
 
     // フェーダーメーター（一体型）
     controls.faderMeter.setFaderColour(bandColour);
@@ -258,7 +251,7 @@ void BassSplitterAudioProcessorEditor::resized()
         bandArea.removeFromTop(5);
 
         // パンスライダー
-        controls.panSlider.setBounds(bandArea.removeFromTop(40).reduced(2, 0));
+        controls.panControl.setBounds(bandArea.removeFromTop(40).reduced(2, 0));
         bandArea.removeFromTop(3);
 
         // ボタン用のエリアを下から確保（縦並び：EQ, Mono, Solo, Bypass）
