@@ -95,6 +95,12 @@ void PanControl::mouseUp(const juce::MouseEvent& /* event */)
     isDragging = false;
 }
 
+void PanControl::mouseDoubleClick(const juce::MouseEvent& /* event */)
+{
+    panSlider.setValue(0.0f, juce::sendNotificationSync);
+    repaint();
+}
+
 float PanControl::getCurrentValue() const
 {
     return static_cast<float>(panSlider.getValue());
