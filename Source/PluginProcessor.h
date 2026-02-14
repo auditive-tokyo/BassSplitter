@@ -27,7 +27,7 @@ public:
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override;
 
-    const juce::String getName() const override;
+    const juce::String getName() const override; // NOSONAR - JUCE API requires const return type.
 
     bool acceptsMidi() const override;
     bool producesMidi() const override;
@@ -37,7 +37,7 @@ public:
     int getNumPrograms() override;
     int getCurrentProgram() override;
     void setCurrentProgram(int index) override;
-    const juce::String getProgramName(int index) override;
+    const juce::String getProgramName(int index) override; // NOSONAR - JUCE API requires const return type.
     void changeProgramName(int index, const juce::String& newName) override;
 
     void getStateInformation(juce::MemoryBlock& destData) override;

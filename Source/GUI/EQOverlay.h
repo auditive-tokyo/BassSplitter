@@ -1,5 +1,7 @@
 #pragma once
 
+#include "EQCoordinateMapper.h"
+
 #include <array>
 #include <functional>
 #include <juce_gui_basics/juce_gui_basics.h>
@@ -114,12 +116,10 @@ private:
     static constexpr float minDB = -48.0f;
     static constexpr float maxDB = 6.0f;
 
-    // ---- Private メンバー関数 ----
-    // 座標変換
-    float frequencyToX(float freq) const;
-    float xToFrequency(float x) const;
-    float dbToY(float db) const;
+    // 座標変換ヘルパー
+    EQCoordinateMapper coordinateMapper;
 
+    // ---- Private メンバー関数 ----
     // 描画
     void drawFilterCurves(juce::Graphics& g);
     void drawEQHandles(juce::Graphics& g);

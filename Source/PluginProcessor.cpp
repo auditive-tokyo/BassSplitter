@@ -63,7 +63,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::
         params.push_back(std::make_unique<juce::AudioParameterBool>(
             juce::ParameterID(bandId + "Mono", 1), bandName + " Mono", false));
 
-        // Pan (-100 = Left, 0 = Center, +100 = Right)
+        // Pan parameter: -100 (Left), 0 (Center), +100 (Right)
         params.push_back(std::make_unique<juce::AudioParameterFloat>(
             juce::ParameterID(bandId + "Pan", 1),
             bandName + " Pan",
@@ -107,9 +107,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::
     return {params.begin(), params.end()};
 }
 
-BassSplitterAudioProcessor::~BassSplitterAudioProcessor() {}
+BassSplitterAudioProcessor::~BassSplitterAudioProcessor() = default;
 
-const juce::String BassSplitterAudioProcessor::getName() const
+const juce::String BassSplitterAudioProcessor::getName() const // NOSONAR - JUCE API requires const return type.
 {
     return JucePlugin_Name;
 }
@@ -149,7 +149,7 @@ void BassSplitterAudioProcessor::setCurrentProgram(int index)
     juce::ignoreUnused(index);
 }
 
-const juce::String BassSplitterAudioProcessor::getProgramName(int index)
+const juce::String BassSplitterAudioProcessor::getProgramName(int index) // NOSONAR - JUCE API requires const return type.
 {
     juce::ignoreUnused(index);
     return {};
@@ -305,14 +305,14 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
         // ハイパスフィルターを適用
         for (int stage = 0; stage < numStages; ++stage)
         {
-            juce::dsp::ProcessContextReplacing<float> ctx(block);
+            juce::dsp::ProcessContextReplacing ctx(block);
             bandEQFilters[static_cast<size_t>(band)].highpass[static_cast<size_t>(stage)].process(ctx);
         }
 
         // ローパスフィルターを適用
         for (int stage = 0; stage < numStages; ++stage)
         {
-            juce::dsp::ProcessContextReplacing<float> ctx(block);
+            juce::dsp::ProcessContextReplacing ctx(block);
             bandEQFilters[static_cast<size_t>(band)].lowpass[static_cast<size_t>(stage)].process(ctx);
         }
 
@@ -442,7 +442,7 @@ bool BassSplitterAudioProcessor::hasEditor() const
 
 juce::AudioProcessorEditor* BassSplitterAudioProcessor::createEditor()
 {
-    return new BassSplitterAudioProcessorEditor(*this);
+    return new BassSplitterAudioProcessorEditor(*this); // NOSONAR - JUCE owns editor lifetime.
 }
 
 void BassSplitterAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
@@ -459,7 +459,8 @@ void BassSplitterAudioProcessor::getStateInformation(juce::MemoryBlock& destData
     copyXmlToBinary(*xml, destData);
 }
 
-void BassSplitterAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
+void BassSplitterAudioProcessor::setStateInformation(const void* data, // NOSONAR - JUCE API override uses void*.
+                                                     int sizeInBytes)
 {
     std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
     if (xmlState != nullptr && xmlState->hasTagName(apvts.state.getType()))
@@ -549,5 +550,5 @@ void BassSplitterAudioProcessor::getBandPeakLevelStereo(int bandIndex, float& le
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
-    return new BassSplitterAudioProcessor();
+    return new BassSplitterAudioProcessor(); // NOSONAR - JUCE/host owns deletion of plugin instance.
 }

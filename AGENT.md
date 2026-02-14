@@ -57,6 +57,7 @@
 │   ├── DSP/                    # デジタル信号処理
 │   │   ├── SpectrumAnalyzer.cpp/h
 │   ├── GUI/                    # GUIコンポーネント
+│   │   ├── EQCoordinateMapper.cpp/h  # 座標変換ユーティリティ
 │   │   ├── EQOverlay.cpp/h
 │   │   ├── FaderMeter.cpp/h
 │   │   ├── SpectrumDisplay.cpp/h
@@ -114,6 +115,22 @@
 - **更新**: `pushSamples()` で入力 → `processFFT()` で解析
 
 ### GUI コンポーネント
+
+#### `GUI/EQCoordinateMapper.cpp/h`
+
+- **役割**: EQ可視化のための座標変換ユーティリティ (EQOverlayから分離)
+- **主要機能**:
+  - `frequencyToX()`: 周波数 (Hz) → X座標ピクセル (対数スケール 20Hz-20kHz)
+  - `xToFrequency()`: X座標ピクセル → 周波数 (Hz) (逆変換)
+  - `dbToY()`: dB値 → Y座標ピクセル (線形スケール -48dB ~ +6dB)
+- **定数**:
+  - `minFreq = 20.0f`, `maxFreq = 20000.0f`
+  - `minDB = -48.0f`, `maxDB = 6.0f`
+- **設計**:
+  - ステートレスな純粋座標変換クラス
+  - EQOverlayのメンバーとして保持
+  - 将来的にParametric EQコンポーネントでも再利用可能
+- **リファクタリング経緯**: SonarQube警告 (EQOverlay 37メソッド > 35制限) に対応し、単一責任原則に基づきクラス分割
 
 #### `GUI/EQOverlay.cpp/h`
 
@@ -242,7 +259,7 @@
 - JUCE UnitTestの導入（DSP/パラメータテスト）
 - SonarQubeのCI統合（静的解析の自動化）
 
-### コード品質
+### コード品質とリファクタリング
 
 - **行数**: PluginProcessor ~570行、PluginEditor ~300行
 - **分割**: DSP/GUI で適切に分離済み
@@ -282,6 +299,8 @@
    - 新機能の実装
    - 既存機能の削除
    - UIレイアウトの大幅な変更
+
+**注意**: SonarQube対応（警告修正、リファクタリングなど）については、コード修正のたびに発生する細かい変更のため、AGENT.mdへの記載は不要です。ドキュメントが肥大化して読みづらくなることを避けるため、アーキテクチャに影響する大きな変更のみを記録してください。
 
 ### 更新手順
 

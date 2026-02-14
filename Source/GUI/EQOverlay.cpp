@@ -39,26 +39,7 @@ void EQOverlay::setFocusedBand(int bandIndex)
     repaint();
 }
 
-// ---- 座標変換 ----
-
-float EQOverlay::frequencyToX(float freq) const
-{
-    float normalized = (std::log10(freq) - std::log10(minFreq)) / (std::log10(maxFreq) - std::log10(minFreq));
-    return normalized * static_cast<float>(getWidth());
-}
-
-float EQOverlay::xToFrequency(float x) const
-{
-    float normalized = x / static_cast<float>(getWidth());
-    return std::pow(10.0f, normalized * (std::log10(maxFreq) - std::log10(minFreq)) + std::log10(minFreq));
-}
-
-float EQOverlay::dbToY(float db) const
-{
-    auto height = static_cast<float>(getHeight());
-    float normalized = (db - minDB) / (maxDB - minDB);
-    return height * (1.0f - normalized);
-}
+// ---- バンドカラー ----
 
 juce::Colour EQOverlay::getBandColour(int bandIndex) const
 {
@@ -109,8 +90,8 @@ void EQOverlay::findNearestHandle(float mouseX, float mouseY, int& outBand, bool
         // HP ハンドル
         if (float hpFreq = bandHighpassFreqs[static_cast<size_t>(band)]; hpFreq > 1.0f)
         {
-            float hx = frequencyToX(hpFreq);
-            float hy = dbToY(getBandGain(band, hpFreq));
+            float hx = coordinateMapper.frequencyToX(hpFreq, getWidth());
+            float hy = coordinateMapper.dbToY(getBandGain(band, hpFreq), getHeight());
             float dist = std::sqrt((mouseX - hx) * (mouseX - hx) + (mouseY - hy) * (mouseY - hy));
             if (dist < minDist)
             {
@@ -123,8 +104,8 @@ void EQOverlay::findNearestHandle(float mouseX, float mouseY, int& outBand, bool
         // LP ハンドル
         if (float lpFreq = bandLowpassFreqs[static_cast<size_t>(band)]; lpFreq < 19999.0f)
         {
-            float lx = frequencyToX(lpFreq);
-            float ly = dbToY(getBandGain(band, lpFreq));
+            float lx = coordinateMapper.frequencyToX(lpFreq, getWidth());
+            float ly = coordinateMapper.dbToY(getBandGain(band, lpFreq), getHeight());
             float dist = std::sqrt((mouseX - lx) * (mouseX - lx) + (mouseY - ly) * (mouseY - ly));
             if (dist < minDist)
             {
@@ -144,9 +125,9 @@ int EQOverlay::findBandOnCurve(float mouseX, float mouseY) const
         if (bandBypassed[static_cast<size_t>(band)])
             continue;
 
-        float freq = xToFrequency(mouseX);
+        float freq = coordinateMapper.xToFrequency(mouseX, getWidth());
         float gainDB = getBandGain(band, freq);
-        float curveY = dbToY(gainDB);
+        float curveY = coordinateMapper.dbToY(gainDB, getHeight());
 
         if (std::abs(mouseY - curveY) < curveHitDistance)
             return band;
@@ -311,9 +292,9 @@ bool EQOverlay::showPopupIfCurveClicked(float mouseX, float mouseY, const juce::
     if (focusedBand < 0 || event.mods.isPopupMenu())
         return false;
 
-    float freq = xToFrequency(mouseX);
+    float freq = coordinateMapper.xToFrequency(mouseX, getWidth());
     float gainDB = getBandGain(focusedBand, freq);
-    if (float curveY = dbToY(gainDB); std::abs(mouseY - curveY) >= curveHitDistance)
+    if (float curveY = coordinateMapper.dbToY(gainDB, getHeight()); std::abs(mouseY - curveY) >= curveHitDistance)
         return false;
 
     // focusedBand のカーブ上をクリック
@@ -350,7 +331,7 @@ void EQOverlay::mouseDrag(const juce::MouseEvent& event)
         return;
 
     auto mx = static_cast<float>(event.x);
-    float freq = xToFrequency(juce::jlimit(0.0f, static_cast<float>(getWidth()), mx));
+    float freq = coordinateMapper.xToFrequency(juce::jlimit(0.0f, static_cast<float>(getWidth()), mx), getWidth());
 
     if (dragState.isHighpass)
     {
@@ -452,7 +433,7 @@ bool EQOverlay::handleDoubleClickOnCurve(float mouseX, float mouseY)
 
     setFocusedBand(band); // フォーカスを設定（既に設定済みなら何もしない）
 
-    float freq = xToFrequency(mouseX);
+    float freq = coordinateMapper.xToFrequency(mouseX, getWidth());
     float hpFreq = bandHighpassFreqs[static_cast<size_t>(band)];
     float lpFreq = bandLowpassFreqs[static_cast<size_t>(band)];
 
@@ -531,9 +512,9 @@ void EQOverlay::drawFilterCurves(juce::Graphics& g)
         for (int i = 0; i < static_cast<int>(width); i += 2)
         {
             auto x = static_cast<float>(i);
-            float freq = xToFrequency(x);
+            float freq = coordinateMapper.xToFrequency(x, getWidth());
             float gainDB = getBandGain(band, freq);
-            float y = dbToY(gainDB);
+            float y = coordinateMapper.dbToY(gainDB, getHeight());
 
             if (!pathStarted)
             {
@@ -573,8 +554,8 @@ void EQOverlay::drawEQHandles(juce::Graphics& g)
         // HP ハンドル
         if (float hpFreq = bandHighpassFreqs[static_cast<size_t>(band)]; hpFreq > 1.0f)
         {
-            float hx = frequencyToX(hpFreq);
-            float hy = dbToY(getBandGain(band, hpFreq));
+            float hx = coordinateMapper.frequencyToX(hpFreq, getWidth());
+            float hy = coordinateMapper.dbToY(getBandGain(band, hpFreq), getHeight());
             bool isActive = (dragState.isDragging && dragState.bandIndex == band && dragState.isHighpass) ||
                             (hoveredBand == band && hoveredIsHighpass);
 
@@ -594,8 +575,8 @@ void EQOverlay::drawEQHandles(juce::Graphics& g)
         // LP ハンドル
         if (float lpFreq = bandLowpassFreqs[static_cast<size_t>(band)]; lpFreq < 19999.0f)
         {
-            float lx = frequencyToX(lpFreq);
-            float ly = dbToY(getBandGain(band, lpFreq));
+            float lx = coordinateMapper.frequencyToX(lpFreq, getWidth());
+            float ly = coordinateMapper.dbToY(getBandGain(band, lpFreq), getHeight());
             bool isActive = (dragState.isDragging && dragState.bandIndex == band && !dragState.isHighpass) ||
                             (hoveredBand == band && !hoveredIsHighpass);
 
@@ -630,8 +611,8 @@ void EQOverlay::drawDragTooltip(juce::Graphics& g)
 
     text += dragState.isHighpass ? " HP" : " LP";
 
-    float hx = frequencyToX(freq);
-    float hy = dbToY(getBandGain(dragState.bandIndex, freq));
+    float hx = coordinateMapper.frequencyToX(freq, getWidth());
+    float hy = coordinateMapper.dbToY(getBandGain(dragState.bandIndex, freq), getHeight());
 
     float textWidth = 80.0f;
     float textHeight = 18.0f;
