@@ -107,8 +107,7 @@ void EQOverlay::findNearestHandle(float mouseX, float mouseY, int& outBand, bool
             continue;
 
         // HP ハンドル
-        float hpFreq = bandHighpassFreqs[static_cast<size_t>(band)];
-        if (hpFreq > 1.0f)
+        if (float hpFreq = bandHighpassFreqs[static_cast<size_t>(band)]; hpFreq > 1.0f)
         {
             float hx = frequencyToX(hpFreq);
             float hy = dbToY(getBandGain(band, hpFreq));
@@ -122,8 +121,7 @@ void EQOverlay::findNearestHandle(float mouseX, float mouseY, int& outBand, bool
         }
 
         // LP ハンドル
-        float lpFreq = bandLowpassFreqs[static_cast<size_t>(band)];
-        if (lpFreq < 19999.0f)
+        if (float lpFreq = bandLowpassFreqs[static_cast<size_t>(band)]; lpFreq < 19999.0f)
         {
             float lx = frequencyToX(lpFreq);
             float ly = dbToY(getBandGain(band, lpFreq));
@@ -535,8 +533,7 @@ void EQOverlay::drawEQHandles(juce::Graphics& g)
         auto colour = getBandColour(band);
 
         // HP ハンドル
-        float hpFreq = bandHighpassFreqs[static_cast<size_t>(band)];
-        if (hpFreq > 1.0f)
+        if (float hpFreq = bandHighpassFreqs[static_cast<size_t>(band)]; hpFreq > 1.0f)
         {
             float hx = frequencyToX(hpFreq);
             float hy = dbToY(getBandGain(band, hpFreq));
@@ -557,8 +554,7 @@ void EQOverlay::drawEQHandles(juce::Graphics& g)
         }
 
         // LP ハンドル
-        float lpFreq = bandLowpassFreqs[static_cast<size_t>(band)];
-        if (lpFreq < 19999.0f)
+        if (float lpFreq = bandLowpassFreqs[static_cast<size_t>(band)]; lpFreq < 19999.0f)
         {
             float lx = frequencyToX(lpFreq);
             float ly = dbToY(getBandGain(band, lpFreq));
@@ -599,8 +595,8 @@ void EQOverlay::drawDragTooltip(juce::Graphics& g)
     float hx = frequencyToX(freq);
     float hy = dbToY(getBandGain(dragState.bandIndex, freq));
 
-    int textWidth = 80;
-    int textHeight = 18;
+    float textWidth = 80.0f;
+    float textHeight = 18.0f;
     float tx = hx - textWidth * 0.5f;
     float ty = hy - handleRadius - textHeight - 6.0f;
 
@@ -609,9 +605,9 @@ void EQOverlay::drawDragTooltip(juce::Graphics& g)
         ty = hy + handleRadius + 6.0f;
 
     g.setColour(juce::Colour(0xe0202030));
-    g.fillRoundedRectangle(tx, ty, static_cast<float>(textWidth), static_cast<float>(textHeight), 4.0f);
+    g.fillRoundedRectangle(tx, ty, textWidth, textHeight, 4.0f);
     g.setColour(getBandColour(dragState.bandIndex));
-    g.drawRoundedRectangle(tx, ty, static_cast<float>(textWidth), static_cast<float>(textHeight), 4.0f, 1.0f);
+    g.drawRoundedRectangle(tx, ty, textWidth, textHeight, 4.0f, 1.0f);
 
     g.setColour(juce::Colours::white);
     g.setFont(12.0f);
@@ -624,18 +620,22 @@ void EQOverlay::drawDragTooltip(juce::Graphics& g)
         g.drawText(freqInput.inputText + "_",
                    static_cast<int>(tx),
                    static_cast<int>(ty),
-                   textWidth,
-                   textHeight,
+                   static_cast<int>(textWidth),
+                   static_cast<int>(textHeight),
                    juce::Justification::centred);
     }
     else
     {
-        g.drawText(
-            text, static_cast<int>(tx), static_cast<int>(ty), textWidth, textHeight, juce::Justification::centred);
+        g.drawText(text,
+                   static_cast<int>(tx),
+                   static_cast<int>(ty),
+                   static_cast<int>(textWidth),
+                   static_cast<int>(textHeight),
+                   juce::Justification::centred);
     }
 }
 
-void EQOverlay::drawPopup(juce::Graphics& g)
+void EQOverlay::drawPopup(juce::Graphics& g) const
 {
     if (!popup.isVisible)
         return;
@@ -738,11 +738,8 @@ bool EQOverlay::keyPressed(const juce::KeyPress& key)
         {
             float freq = 0.0f;
 
-            // テキストを大文字に統一
-            juce::String upper = text.toUpperCase();
-
             // "K" (kHz の k) を含む → kHz に変換
-            if (upper.contains("K"))
+            if (juce::String upper = text.toUpperCase(); upper.contains("K"))
             {
                 // "KHZ" と "K" を削除
                 text = text.removeCharacters("kKhHzZ").trim();
@@ -791,9 +788,8 @@ bool EQOverlay::keyPressed(const juce::KeyPress& key)
     }
 
     // 数字・小数点・単位文字を許可
-    auto ch = key.getTextCharacter();
-    if (juce::CharacterFunctions::isDigit(ch) || ch == '.' || ch == 'k' || ch == 'K' || ch == 'h' || ch == 'H' ||
-        ch == 'z' || ch == 'Z')
+    if (auto ch = key.getTextCharacter(); juce::CharacterFunctions::isDigit(ch) || ch == '.' || ch == 'k' ||
+                                          ch == 'K' || ch == 'h' || ch == 'H' || ch == 'z' || ch == 'Z')
     {
         freqInput.inputText += ch;
         repaint();

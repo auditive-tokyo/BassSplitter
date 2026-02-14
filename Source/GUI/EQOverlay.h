@@ -124,7 +124,7 @@ private:
     void drawFilterCurves(juce::Graphics& g);
     void drawEQHandles(juce::Graphics& g);
     void drawDragTooltip(juce::Graphics& g);
-    void drawPopup(juce::Graphics& g);
+    void drawPopup(juce::Graphics& g) const;
 
     // EQ計算
     float getBandGain(int bandIndex, float freq) const;

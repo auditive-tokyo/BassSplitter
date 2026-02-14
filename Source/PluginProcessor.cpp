@@ -24,7 +24,7 @@ BassSplitterAudioProcessor::BassSplitterAudioProcessor()
         level.store(0.0f);
 }
 
-juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::createParameterLayout()
+juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::createParameterLayout() const
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
