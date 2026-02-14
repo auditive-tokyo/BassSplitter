@@ -59,7 +59,6 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
             }
         });
 
-
     // ピークリセットボタン
     resetPeaksButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff333344));
     resetPeaksButton.setColour(juce::TextButton::textColourOffId, juce::Colours::lightgrey);
@@ -250,8 +249,8 @@ void BassSplitterAudioProcessorEditor::resized()
         controls.nameLabel.setBounds(bandArea.removeFromTop(20));
         bandArea.removeFromTop(5);
 
-        // パンスライダー
-        controls.panControl.setBounds(bandArea.removeFromTop(40).reduced(2, 0));
+        // パンコントロール（ノブ）
+        controls.panControl.setBounds(bandArea.removeFromTop(95).reduced(2, 0));
         bandArea.removeFromTop(3);
 
         // ボタン用のエリアを下から確保（縦並び：EQ, Mono, Solo, Bypass）

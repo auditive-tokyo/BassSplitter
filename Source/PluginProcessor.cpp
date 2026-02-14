@@ -65,11 +65,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::
         params.push_back(std::make_unique<juce::AudioParameterBool>(
             juce::ParameterID(bandId + "Mono", 1), bandName + " Mono", false));
 
-        // Pan parameter: -100 (Left), 0 (Center), +100 (Right)
+        // Pan parameter: -50 (Left), 0 (Center), +50 (Right) - Ableton style
         params.push_back(std::make_unique<juce::AudioParameterFloat>(
             juce::ParameterID(bandId + "Pan", 1),
             bandName + " Pan",
-            juce::NormalisableRange<float>(-100.0f, 100.0f, 1.0f),
+            juce::NormalisableRange<float>(-50.0f, 50.0f, 1.0f),
             0.0f,
             juce::AudioParameterFloatAttributes().withStringFromValueFunction(
                 [](float value, int)
@@ -151,7 +151,8 @@ void BassSplitterAudioProcessor::setCurrentProgram(int index)
     juce::ignoreUnused(index);
 }
 
-const juce::String BassSplitterAudioProcessor::getProgramName(int index) // NOSONAR - JUCE API requires const return type.
+const juce::String // NOSONAR - JUCE API requires const return type.
+BassSplitterAudioProcessor::getProgramName(int index)
 {
     juce::ignoreUnused(index);
     return {};
@@ -220,34 +221,31 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
 
     // スペクトラムアナライザーに入力信号を送る
     if (numChannels > 0)
-        spectrumAnalyzer.pushSamples(
-            std::span<const float>(buffer.getReadPointer(0), static_cast<size_t>(numSamples)));
+        spectrumAnalyzer.pushSamples(std::span<const float>(buffer.getReadPointer(0), static_cast<size_t>(numSamples)));
 
     auto slopeIndex = static_cast<int>(apvts.getRawParameterValue("slope")->load());
     int numStages = ProcessBlockCoordinator::getNumFilterStages(slopeIndex);
     blockCoordinator.updateEQFilterSettings(apvts, bandEQFilters);
-    
+
     auto params = blockCoordinator.loadBandParameters(apvts);
     blockCoordinator.prepareBandBuffers(buffer, bandBuffers, numChannels, numSamples);
-    
+
     for (int band = 0; band < numBands; ++band)
     {
         if (!params.bypassed[static_cast<size_t>(band)])
         {
-            BandProcessor::BandProcessingContext context{
-                band,
-                numStages,
-                numChannels,
-                numSamples,
-                bandBuffers[static_cast<size_t>(band)],
-                bandEQFilters[static_cast<size_t>(band)],
-                bandPeakLevelsL[static_cast<size_t>(band)],
-                bandPeakLevelsR[static_cast<size_t>(band)]
-            };
+            BandProcessor::BandProcessingContext context{band,
+                                                         numStages,
+                                                         numChannels,
+                                                         numSamples,
+                                                         bandBuffers[static_cast<size_t>(band)],
+                                                         bandEQFilters[static_cast<size_t>(band)],
+                                                         bandPeakLevelsL[static_cast<size_t>(band)],
+                                                         bandPeakLevelsR[static_cast<size_t>(band)]};
             bandProcessor.processSingleBand(params, context);
         }
     }
-    
+
     blockCoordinator.clearBypassedBandPeaks(params, bandPeakLevelsL, bandPeakLevelsR);
     blockCoordinator.mixBandsToOutput(buffer, params, bandBuffers, numChannels, numSamples);
 }
