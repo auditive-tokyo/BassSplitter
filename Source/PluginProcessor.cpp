@@ -52,8 +52,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::
         juce::String bandId = "band" + juce::String(i + 1);
         juce::String bandName = "Band " + juce::String(i + 1);
 
-        // Bypass（デフォルトではBand2-5がバイパス）
-        bool defaultBypass = (i >= 1 && i <= 4); // Band 2, 3, 4, 5
+        // Bypass（デフォルトではBand2-6がバイパス）
+        bool defaultBypass = (i >= 1 && i <= 5); // Band 2, 3, 4, 5, 6
         params.push_back(std::make_unique<juce::AudioParameterBool>(
             juce::ParameterID(bandId + "Bypass", 1), bandName + " Bypass", defaultBypass));
 
