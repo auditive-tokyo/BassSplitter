@@ -140,6 +140,8 @@ private:
     bool handlePopupClick(float mouseX, float mouseY);
     bool startDragIfHandleHit(float mouseX, float mouseY, const juce::MouseEvent& event);
     bool showPopupIfCurveClicked(float mouseX, float mouseY, const juce::MouseEvent& event);
+    bool handleDoubleClickOnHandle(float mouseX, float mouseY);
+    bool handleDoubleClickOnCurve(float mouseX, float mouseY);
 
     /** ポップアップのHPボタン領域 */
     juce::Rectangle<float> getPopupHPButtonBounds() const;

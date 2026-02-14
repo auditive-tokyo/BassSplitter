@@ -313,9 +313,7 @@ bool EQOverlay::showPopupIfCurveClicked(float mouseX, float mouseY, const juce::
 
     float freq = xToFrequency(mouseX);
     float gainDB = getBandGain(focusedBand, freq);
-    float curveY = dbToY(gainDB);
-
-    if (std::abs(mouseY - curveY) >= curveHitDistance)
+    if (float curveY = dbToY(gainDB); std::abs(mouseY - curveY) >= curveHitDistance)
         return false;
 
     // focusedBand のカーブ上をクリック
@@ -411,88 +409,101 @@ void EQOverlay::mouseDoubleClick(const juce::MouseEvent& event)
     auto mx = static_cast<float>(event.x);
     auto my = static_cast<float>(event.y);
 
+    if (handleDoubleClickOnHandle(mx, my))
+        return;
+
+    if (handleDoubleClickOnCurve(mx, my))
+        return;
+}
+
+bool EQOverlay::handleDoubleClickOnHandle(float mouseX, float mouseY)
+{
     // 既存ハンドル上でダブルクリック → ポイント削除（デフォルトに戻す）
     int handleBand = -1;
     bool handleIsHP = true;
-    findNearestHandle(mx, my, handleBand, handleIsHP);
+    findNearestHandle(mouseX, mouseY, handleBand, handleIsHP);
 
-    if (handleBand >= 0)
+    if (handleBand < 0)
+        return false;
+
+    if (handleIsHP)
     {
-        if (handleIsHP)
-        {
-            bandHighpassFreqs[static_cast<size_t>(handleBand)] = 0.0f;
-            if (onEQFrequencyChanged)
-                onEQFrequencyChanged(handleBand, true, 0.0f);
-        }
-        else
-        {
-            bandLowpassFreqs[static_cast<size_t>(handleBand)] = 20000.0f;
-            if (onEQFrequencyChanged)
-                onEQFrequencyChanged(handleBand, false, 20000.0f);
-        }
-        popup.isVisible = false;
-        repaint();
-        return;
+        bandHighpassFreqs[static_cast<size_t>(handleBand)] = 0.0f;
+        if (onEQFrequencyChanged)
+            onEQFrequencyChanged(handleBand, true, 0.0f);
     }
+    else
+    {
+        bandLowpassFreqs[static_cast<size_t>(handleBand)] = 20000.0f;
+        if (onEQFrequencyChanged)
+            onEQFrequencyChanged(handleBand, false, 20000.0f);
+    }
+    popup.isVisible = false;
+    repaint();
+    return true;
+}
 
+bool EQOverlay::handleDoubleClickOnCurve(float mouseX, float mouseY)
+{
     // フォーカスされたバンドのカーブ上でのみダブルクリック有効
-    int band = findBandOnCurve(mx, my);
-    if (band >= 0 && (focusedBand == -1 || focusedBand == band)) // フォーカス無し or このバンドがフォーカス中
+    int band = findBandOnCurve(mouseX, mouseY);
+    if (band < 0 || (focusedBand != -1 && focusedBand != band))
+        return false;
+
+    setFocusedBand(band); // フォーカスを設定（既に設定済みなら何もしない）
+
+    float freq = xToFrequency(mouseX);
+    float hpFreq = bandHighpassFreqs[static_cast<size_t>(band)];
+    float lpFreq = bandLowpassFreqs[static_cast<size_t>(band)];
+
+    // 既にあるかどうかで選択肢を制限
+    bool hasHP = hpFreq > 1.0f;
+    bool hasLP = lpFreq < 19999.0f;
+
+    popup.isVisible = true;
+    popup.bandIndex = band;
+    popup.frequency = freq;
+    popup.triggerX = mouseX; // トリガー座標を保存
+    popup.triggerY = mouseY;
+    popup.canHP = !hasHP; // HPがまだ無ければ作成可
+    popup.canLP = !hasLP; // LPがまだ無ければ作成可
+
+    // ポップアップの最終表示位置を一度だけ計算して保存
+    float popupWidth = 140.0f;
+    float popupHeight = 55.0f;
+    float px = mouseX - popupWidth * 0.5f;
+    float py = mouseY - popupHeight - 10.0f;
+
+    // 画面外に出ないように調整
+    px = juce::jlimit(2.0f, static_cast<float>(getWidth()) - popupWidth - 2.0f, px);
+    if (py < 2.0f)
+        py = mouseY + 15.0f;
+
+    popup.displayX = px; // 計算済み位置を固定保存
+    popup.displayY = py;
+
+    // 両方あったらポップアップ不要（ダブルクリック削除で対応）
+    if (hasHP && hasLP)
+        popup.isVisible = false;
+
+    // 片方だけあったら、もう片方を直接作成（ポップアップ省略）
+    if (hasHP && !hasLP)
     {
-        setFocusedBand(band); // フォーカスを設定（既に設定済みなら何もしない）
-
-        float freq = xToFrequency(mx);
-        float hpFreq = bandHighpassFreqs[static_cast<size_t>(band)];
-        float lpFreq = bandLowpassFreqs[static_cast<size_t>(band)];
-
-        // 既にあるかどうかで選択肢を制限
-        bool hasHP = hpFreq > 1.0f;
-        bool hasLP = lpFreq < 19999.0f;
-
-        popup.isVisible = true;
-        popup.bandIndex = band;
-        popup.frequency = freq;
-        popup.triggerX = mx; // トリガー座標を保存
-        popup.triggerY = my;
-        popup.canHP = !hasHP; // HPがまだ無ければ作成可
-        popup.canLP = !hasLP; // LPがまだ無ければ作成可
-
-        // ポップアップの最終表示位置を一度だけ計算して保存
-        float popupWidth = 140.0f;
-        float popupHeight = 55.0f;
-        float px = mx - popupWidth * 0.5f;
-        float py = my - popupHeight - 10.0f;
-
-        // 画面外に出ないように調整
-        px = juce::jlimit(2.0f, static_cast<float>(getWidth()) - popupWidth - 2.0f, px);
-        if (py < 2.0f)
-            py = my + 15.0f;
-
-        popup.displayX = px; // 計算済み位置を固定保存
-        popup.displayY = py;
-
-        // 両方あったらポップアップ不要（ダブルクリック削除で対応）
-        if (hasHP && hasLP)
-            popup.isVisible = false;
-
-        // 片方だけあったら、もう片方を直接作成（ポップアップ省略）
-        if (hasHP && !hasLP)
-        {
-            bandLowpassFreqs[static_cast<size_t>(band)] = freq;
-            if (onEQFrequencyChanged)
-                onEQFrequencyChanged(band, false, freq);
-            popup.isVisible = false;
-        }
-        else if (!hasHP && hasLP)
-        {
-            bandHighpassFreqs[static_cast<size_t>(band)] = freq;
-            if (onEQFrequencyChanged)
-                onEQFrequencyChanged(band, true, freq);
-            popup.isVisible = false;
-        }
-
-        repaint();
+        bandLowpassFreqs[static_cast<size_t>(band)] = freq;
+        if (onEQFrequencyChanged)
+            onEQFrequencyChanged(band, false, freq);
+        popup.isVisible = false;
     }
+    else if (!hasHP && hasLP)
+    {
+        bandHighpassFreqs[static_cast<size_t>(band)] = freq;
+        if (onEQFrequencyChanged)
+            onEQFrequencyChanged(band, true, freq);
+        popup.isVisible = false;
+    }
+
+    repaint();
+    return true;
 }
 
 // ---- 描画 ----
