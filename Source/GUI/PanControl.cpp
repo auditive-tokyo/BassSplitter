@@ -1,5 +1,7 @@
 #include "PanControl.h"
 
+#include "StyleHelper.h"
+
 #include <cmath>
 
 PanControl::PanControl()
@@ -9,19 +11,11 @@ PanControl::PanControl()
     panSlider.setValue(0.0f, juce::dontSendNotification);
     // Keep slider invisible - we only use it for APVTS attachment
 
-    // スライダーの値が変わったらラベルを更新
+    // ノブの値が変わったらラベルを更新
     panSlider.onValueChange = [this]() { updateLabelText(); };
 
-    // Pan値入力用ラベル（FaderMeterのdbValueLabelと同じスタイル）
-    panValueLabel.setFont(juce::FontOptions(12.0f));
-    panValueLabel.setJustificationType(juce::Justification::centred);
-    panValueLabel.setColour(juce::Label::textColourId, juce::Colour(0xff4a90d9));
-    panValueLabel.setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
-    panValueLabel.setColour(juce::Label::outlineColourId, juce::Colours::transparentBlack);
-    panValueLabel.setColour(juce::Label::textWhenEditingColourId, juce::Colours::white);
-    panValueLabel.setColour(juce::Label::backgroundWhenEditingColourId, juce::Colour(0xff1a1a2e));
-    panValueLabel.setColour(juce::Label::outlineWhenEditingColourId, juce::Colour(0xff4a90d9));
-    panValueLabel.setEditable(true, true, false); // シングル/ダブルクリックで編集
+    // Pan値入力用ラベル（共通スタイル適用）
+    StyleHelper::applyEditableLabelStyle(panValueLabel);
     panValueLabel.setText("C", juce::dontSendNotification);
     panValueLabel.addListener(this);
     addAndMakeVisible(panValueLabel);
@@ -148,8 +142,8 @@ void PanControl::updateLabelText()
 
 void PanControl::editorShown(juce::Label*, juce::TextEditor& editor)
 {
-    // 数値、マイナス記号、c/C のみ許可
-    editor.setInputRestrictions(0, "-0123456789cC");
+    // 数値、マイナス記号のみ許可
+    editor.setInputRestrictions(0, "-0123456789");
 }
 
 void PanControl::labelTextChanged(juce::Label* labelThatHasChanged)
@@ -157,13 +151,6 @@ void PanControl::labelTextChanged(juce::Label* labelThatHasChanged)
     if (labelThatHasChanged == &panValueLabel)
     {
         juce::String text = panValueLabel.getText().trim();
-
-        // "c" or "C" → center (0)
-        if (text.equalsIgnoreCase("c"))
-        {
-            panSlider.setValue(0.0f, juce::sendNotificationSync);
-            return;
-        }
 
         // 数値をパース
         float value = text.getFloatValue();

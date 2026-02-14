@@ -1,5 +1,7 @@
 #include "FaderMeter.h"
 
+#include "StyleHelper.h"
+
 #include <cmath>
 
 FaderMeter::FaderMeter()
@@ -26,16 +28,8 @@ FaderMeter::FaderMeter()
         repaint();
     };
 
-    // dB値入力用ラベル
-    dbValueLabel.setFont(juce::FontOptions(16.0f));
-    dbValueLabel.setJustificationType(juce::Justification::centred);
-    dbValueLabel.setColour(juce::Label::textColourId, faderColour);
-    dbValueLabel.setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
-    dbValueLabel.setColour(juce::Label::outlineColourId, juce::Colours::transparentBlack);
-    dbValueLabel.setColour(juce::Label::textWhenEditingColourId, juce::Colours::white);
-    dbValueLabel.setColour(juce::Label::backgroundWhenEditingColourId, juce::Colour(0xff1a1a2e));
-    dbValueLabel.setColour(juce::Label::outlineWhenEditingColourId, faderColour);
-    dbValueLabel.setEditable(true, true, false);
+    // dB値入力用ラベル（共通スタイル適用）
+    StyleHelper::applyEditableLabelStyle(dbValueLabel);
     dbValueLabel.setText("0.0", juce::dontSendNotification);
     dbValueLabel.addListener(this);
     addAndMakeVisible(dbValueLabel);
