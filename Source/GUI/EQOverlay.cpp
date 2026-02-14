@@ -206,113 +206,140 @@ void EQOverlay::mouseDown(const juce::MouseEvent& event)
     auto mx = static_cast<float>(event.x);
     auto my = static_cast<float>(event.y);
 
+    if (cancelInputModeIfNeeded(event))
+        return;
+
+    if (handlePopupClick(mx, my))
+        return;
+
+    if (startDragIfHandleHit(mx, my, event))
+        return;
+
+    if (showPopupIfCurveClicked(mx, my, event))
+        return;
+}
+
+bool EQOverlay::cancelInputModeIfNeeded(const juce::MouseEvent& event)
+{
     // 入力モード中の左クリック → 入力キャンセル
     if (freqInput.isActive && !event.mods.isPopupMenu())
     {
         freqInput.isActive = false;
         dragState.isDragging = false;
         repaint();
-        return;
+        return true;
     }
 
-    // ポップアップが表示中ならボタンクリックを処理
-    if (popup.isVisible)
-    {
-        if (popup.canHP && getPopupHPButtonBounds().contains(mx, my))
-        {
-            // HP ポイントを作成
-            float freq = popup.frequency;
-            int band = popup.bandIndex;
-            bandHighpassFreqs[static_cast<size_t>(band)] = freq;
-            if (onEQFrequencyChanged)
-                onEQFrequencyChanged(band, true, freq);
-            popup.isVisible = false;
-            repaint();
-            return;
-        }
-        if (popup.canLP && getPopupLPButtonBounds().contains(mx, my))
-        {
-            // LP ポイントを作成
-            float freq = popup.frequency;
-            int band = popup.bandIndex;
-            bandLowpassFreqs[static_cast<size_t>(band)] = freq;
-            if (onEQFrequencyChanged)
-                onEQFrequencyChanged(band, false, freq);
-            popup.isVisible = false;
-            repaint();
-            return;
-        }
-        if (getPopupCloseBounds().contains(mx, my))
-        {
-            popup.isVisible = false;
-            repaint();
-            return;
-        }
+    return false;
+}
 
-        // ポップアップ外クリック→閉じる
+bool EQOverlay::handlePopupClick(float mouseX, float mouseY)
+{
+    // ポップアップが表示中ならボタンクリックを処理
+    if (!popup.isVisible)
+        return false;
+
+    if (popup.canHP && getPopupHPButtonBounds().contains(mouseX, mouseY))
+    {
+        // HP ポイントを作成
+        float freq = popup.frequency;
+        int band = popup.bandIndex;
+        bandHighpassFreqs[static_cast<size_t>(band)] = freq;
+        if (onEQFrequencyChanged)
+            onEQFrequencyChanged(band, true, freq);
         popup.isVisible = false;
         repaint();
-        // フォールスルーしてハンドル操作を試行
+        return true;
+    }
+    if (popup.canLP && getPopupLPButtonBounds().contains(mouseX, mouseY))
+    {
+        // LP ポイントを作成
+        float freq = popup.frequency;
+        int band = popup.bandIndex;
+        bandLowpassFreqs[static_cast<size_t>(band)] = freq;
+        if (onEQFrequencyChanged)
+            onEQFrequencyChanged(band, false, freq);
+        popup.isVisible = false;
+        repaint();
+        return true;
+    }
+    if (getPopupCloseBounds().contains(mouseX, mouseY))
+    {
+        popup.isVisible = false;
+        repaint();
+        return true;
     }
 
+    // ポップアップ外クリック→閉じる
+    popup.isVisible = false;
+    repaint();
+    // フォールスルーしてハンドル操作を試行
+    return false;
+}
+
+bool EQOverlay::startDragIfHandleHit(float mouseX, float mouseY, const juce::MouseEvent& event)
+{
     // 既存ハンドルを検索
     int band = -1;
     bool isHP = true;
-    findNearestHandle(mx, my, band, isHP);
+    findNearestHandle(mouseX, mouseY, band, isHP);
 
-    if (band >= 0)
+    if (band < 0)
+        return false;
+
+    dragState.isDragging = true;
+    dragState.bandIndex = band;
+    dragState.isHighpass = isHP;
+    setFocusedBand(band); // ハンドルドラッグ時もフォーカスを設定
+
+    // 右クリック → 周波数直接入力モード開始
+    if (event.mods.isPopupMenu())
     {
-        dragState.isDragging = true;
-        dragState.bandIndex = band;
-        dragState.isHighpass = isHP;
-        setFocusedBand(band); // ハンドルドラッグ時もフォーカスを設定
-
-        // 右クリック → 周波数直接入力モード開始
-        if (event.mods.isPopupMenu())
-        {
-            freqInput.isActive = true;
-            freqInput.bandIndex = band;
-            freqInput.isHighpass = isHP;
-            freqInput.inputText = "";
-        }
-
-        repaint();
-        return;
+        freqInput.isActive = true;
+        freqInput.bandIndex = band;
+        freqInput.isHighpass = isHP;
+        freqInput.inputText = "";
     }
 
+    repaint();
+    return true;
+}
+
+bool EQOverlay::showPopupIfCurveClicked(float mouseX, float mouseY, const juce::MouseEvent& event)
+{
     // ハンドルがない場合、focusedBandのカーブ上をクリック → ポップアップ表示
-    if (focusedBand >= 0 && !event.mods.isPopupMenu())
-    {
-        float freq = xToFrequency(mx);
-        float gainDB = getBandGain(focusedBand, freq);
-        float curveY = dbToY(gainDB);
+    if (focusedBand < 0 || event.mods.isPopupMenu())
+        return false;
 
-        if (std::abs(my - curveY) < curveHitDistance)
-        {
-            // focusedBand のカーブ上をクリック
-            popup.bandIndex = focusedBand;
-            popup.frequency = freq;
-            popup.canHP = (bandHighpassFreqs[static_cast<size_t>(focusedBand)] < 1.5f);
-            popup.canLP = (bandLowpassFreqs[static_cast<size_t>(focusedBand)] > 19998.0f);
-            popup.isVisible = true;
+    float freq = xToFrequency(mouseX);
+    float gainDB = getBandGain(focusedBand, freq);
+    float curveY = dbToY(gainDB);
 
-            // ポップアップ位置を計算
-            float popupWidth = 140.0f;
-            float popupHeight = 55.0f;
-            float px = mx - popupWidth * 0.5f;
-            float py = my - popupHeight - 10.0f;
+    if (std::abs(mouseY - curveY) >= curveHitDistance)
+        return false;
 
-            px = juce::jlimit(2.0f, static_cast<float>(getWidth()) - popupWidth - 2.0f, px);
-            if (py < 2.0f)
-                py = my + 15.0f;
+    // focusedBand のカーブ上をクリック
+    popup.bandIndex = focusedBand;
+    popup.frequency = freq;
+    popup.canHP = (bandHighpassFreqs[static_cast<size_t>(focusedBand)] < 1.5f);
+    popup.canLP = (bandLowpassFreqs[static_cast<size_t>(focusedBand)] > 19998.0f);
+    popup.isVisible = true;
 
-            popup.displayX = px;
-            popup.displayY = py;
+    // ポップアップ位置を計算
+    float popupWidth = 140.0f;
+    float popupHeight = 55.0f;
+    float px = mouseX - popupWidth * 0.5f;
+    float py = mouseY - popupHeight - 10.0f;
 
-            repaint();
-            return;
-        }
-    }
+    px = juce::jlimit(2.0f, static_cast<float>(getWidth()) - popupWidth - 2.0f, px);
+    if (py < 2.0f)
+        py = mouseY + 15.0f;
+
+    popup.displayX = px;
+    popup.displayY = py;
+
+    repaint();
+    return true;
 }
 
 void EQOverlay::mouseDrag(const juce::MouseEvent& event)

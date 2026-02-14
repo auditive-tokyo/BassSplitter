@@ -136,6 +136,11 @@ private:
     /** カーブ線上のバンドを検索（ダブルクリック用） */
     int findBandOnCurve(float mouseX, float mouseY) const;
 
+    bool cancelInputModeIfNeeded(const juce::MouseEvent& event);
+    bool handlePopupClick(float mouseX, float mouseY);
+    bool startDragIfHandleHit(float mouseX, float mouseY, const juce::MouseEvent& event);
+    bool showPopupIfCurveClicked(float mouseX, float mouseY, const juce::MouseEvent& event);
+
     /** ポップアップのHPボタン領域 */
     juce::Rectangle<float> getPopupHPButtonBounds() const;
     /** ポップアップのLPボタン領域 */
