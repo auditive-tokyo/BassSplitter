@@ -189,6 +189,12 @@ void FaderMeter::resized()
     dbValueLabel.setBounds(bounds.removeFromBottom(20));
 }
 
+void FaderMeter::editorShown(juce::Label*, juce::TextEditor& editor)
+{
+    // 数値、マイナス記号、小数点のみ許可
+    editor.setInputRestrictions(0, "-0123456789.");
+}
+
 void FaderMeter::labelTextChanged(juce::Label* labelThatHasChanged)
 {
     if (labelThatHasChanged == &dbValueLabel)

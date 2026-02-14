@@ -26,6 +26,7 @@ public:
 
     // Label::Listener
     void labelTextChanged(juce::Label* labelThatHasChanged) override;
+    void editorShown(juce::Label* label, juce::TextEditor& editor) override;
 
     /** 現在のピークレベルを設定（リニア値、ステレオ） */
     void setLevel(float leftLevel, float rightLevel);
