@@ -86,12 +86,17 @@ void BassSplitterAudioProcessorEditor::setupBandControls(int bandIndex)
     float hue = 0.65f - (static_cast<float>(bandIndex) / (BassSplitterAudioProcessor::numBands - 1)) * 0.30f;
     juce::Colour bandColour = juce::Colour::fromHSV(hue, 0.75f, 0.95f, 1.0f);
 
-    // 名前ラベル
+    // チャンネル名ラベル（フェーダー値ラベルと同じスタイル）
     controls.nameLabel.setText(audioProcessor.getBandName(bandIndex), juce::dontSendNotification);
-    controls.nameLabel.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    controls.nameLabel.setFont(juce::FontOptions(16.0f));
     controls.nameLabel.setJustificationType(juce::Justification::centred);
-    controls.nameLabel.setColour(juce::Label::textColourId, bandColour);
-    controls.nameLabel.setEditable(true);
+    controls.nameLabel.setColour(juce::Label::textColourId, juce::Colour(0xff4a90d9));
+    controls.nameLabel.setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
+    controls.nameLabel.setColour(juce::Label::outlineColourId, juce::Colours::transparentBlack);
+    controls.nameLabel.setColour(juce::Label::textWhenEditingColourId, juce::Colours::white);
+    controls.nameLabel.setColour(juce::Label::backgroundWhenEditingColourId, juce::Colour(0xff1a1a2e));
+    controls.nameLabel.setColour(juce::Label::outlineWhenEditingColourId, juce::Colour(0xff4a90d9));
+    controls.nameLabel.setEditable(true, true, false);
     controls.nameLabel.onTextChange = [this, bandIndex, &controls]()
     { audioProcessor.setBandName(bandIndex, controls.nameLabel.getText()); };
     addAndMakeVisible(controls.nameLabel);
