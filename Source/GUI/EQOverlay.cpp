@@ -55,7 +55,7 @@ float EQOverlay::xToFrequency(float x) const
 
 float EQOverlay::dbToY(float db) const
 {
-    float height = static_cast<float>(getHeight());
+    auto height = static_cast<float>(getHeight());
     float normalized = (db - minDB) / (maxDB - minDB);
     return height * (1.0f - normalized);
 }
@@ -80,15 +80,15 @@ float EQOverlay::getBandGain(int bandIndex, float freq) const
     if (hpFreq > 1.0f)
     {
         float ratio = hpFreq / freq;
-        float magnitude = 1.0f / std::sqrt(1.0f + std::pow(ratio, 2.0f * order));
-        gainDB += 20.0f * std::log10(std::max(magnitude, 0.0001f));
+        auto magnitude = 1.0 / std::sqrt(1.0 + std::pow(ratio, 2.0 * order));
+        gainDB += static_cast<float>(20.0 * std::log10(std::max(magnitude, 0.0001)));
     }
 
     if (lpFreq < 19999.0f)
     {
         float ratio = freq / lpFreq;
-        float magnitude = 1.0f / std::sqrt(1.0f + std::pow(ratio, 2.0f * order));
-        gainDB += 20.0f * std::log10(std::max(magnitude, 0.0001f));
+        auto magnitude = 1.0 / std::sqrt(1.0 + std::pow(ratio, 2.0 * order));
+        gainDB += static_cast<float>(20.0 * std::log10(std::max(magnitude, 0.0001)));
     }
 
     return std::max(gainDB, minDB);
@@ -205,8 +205,8 @@ juce::Rectangle<float> EQOverlay::getPopupCloseBounds() const
 
 void EQOverlay::mouseDown(const juce::MouseEvent& event)
 {
-    float mx = static_cast<float>(event.x);
-    float my = static_cast<float>(event.y);
+    auto mx = static_cast<float>(event.x);
+    auto my = static_cast<float>(event.y);
 
     // 入力モード中の左クリック → 入力キャンセル
     if (freqInput.isActive && !event.mods.isPopupMenu())
@@ -326,7 +326,7 @@ void EQOverlay::mouseDrag(const juce::MouseEvent& event)
     if (freqInput.isActive)
         return;
 
-    float mx = static_cast<float>(event.x);
+    auto mx = static_cast<float>(event.x);
     float freq = xToFrequency(juce::jlimit(0.0f, static_cast<float>(getWidth()), mx));
 
     if (dragState.isHighpass)
@@ -358,8 +358,8 @@ void EQOverlay::mouseUp(const juce::MouseEvent&)
 
 void EQOverlay::mouseMove(const juce::MouseEvent& event)
 {
-    float mx = static_cast<float>(event.x);
-    float my = static_cast<float>(event.y);
+    auto mx = static_cast<float>(event.x);
+    auto my = static_cast<float>(event.y);
 
     int band = -1;
     bool isHP = true;
@@ -383,8 +383,8 @@ void EQOverlay::mouseMove(const juce::MouseEvent& event)
 
 void EQOverlay::mouseDoubleClick(const juce::MouseEvent& event)
 {
-    float mx = static_cast<float>(event.x);
-    float my = static_cast<float>(event.y);
+    auto mx = static_cast<float>(event.x);
+    auto my = static_cast<float>(event.y);
 
     // 既存ハンドル上でダブルクリック → ポイント削除（デフォルトに戻す）
     int handleBand = -1;
@@ -482,7 +482,7 @@ void EQOverlay::paint(juce::Graphics& g)
 
 void EQOverlay::drawFilterCurves(juce::Graphics& g)
 {
-    float width = static_cast<float>(getWidth());
+    auto width = static_cast<float>(getWidth());
 
     for (int band = 0; band < numBands; ++band)
     {
@@ -494,7 +494,7 @@ void EQOverlay::drawFilterCurves(juce::Graphics& g)
 
         for (int i = 0; i < static_cast<int>(width); i += 2)
         {
-            float x = static_cast<float>(i);
+            auto x = static_cast<float>(i);
             float freq = xToFrequency(x);
             float gainDB = getBandGain(band, freq);
             float y = dbToY(gainDB);

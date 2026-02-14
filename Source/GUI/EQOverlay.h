@@ -12,26 +12,25 @@
 class EQOverlay : public juce::Component
 {
 public:
-    // ---- Public データメンバー ----
     static constexpr int numBands = 6;
 
-    /** EQ周波数変更時のコールバック (bandIndex, isHighpass, newFreq) */
-    std::function<void(int, bool, float)> onEQFrequencyChanged;
-
-    // ---- Public メンバー関数 ----
+    /** コンストラクタ */
     EQOverlay();
+    
+    /** デストラクタ */
     ~EQOverlay() override = default;
 
+    /** 描画処理 */
     void paint(juce::Graphics& g) override;
 
-    // マウス操作
+    // ---- マウス操作 ----
     void mouseDown(const juce::MouseEvent& event) override;
     void mouseDrag(const juce::MouseEvent& event) override;
     void mouseUp(const juce::MouseEvent& event) override;
     void mouseMove(const juce::MouseEvent& event) override;
     void mouseDoubleClick(const juce::MouseEvent& event) override;
 
-    // キーボード入力
+    // ---- キーボード入力 ----
     bool keyPressed(const juce::KeyPress& key) override;
 
     /** 各バンドのEQ周波数を設定（外部からの同期） */
@@ -49,7 +48,15 @@ public:
     /** フォーカスされているバンドを取得 */
     int getFocusedBand() const { return focusedBand; }
 
+    /** EQ周波数変更時のコールバックを設定 (bandIndex, isHighpass, newFreq) */
+    void setEQFrequencyChangedCallback(std::function<void(int, bool, float)> callback)
+    {
+        onEQFrequencyChanged = std::move(callback);
+    }
+
 private:
+    // ---- Private データメンバー ----
+    std::function<void(int, bool, float)> onEQFrequencyChanged;
     // ---- Private データメンバー ----
     std::array<float, numBands> bandHighpassFreqs = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
     std::array<float, numBands> bandLowpassFreqs = {20000.0f, 20000.0f, 20000.0f, 20000.0f, 20000.0f, 20000.0f};

@@ -1,9 +1,10 @@
-.PHONY: build run install clean cmake check lint tidy tidy-fix help
+.PHONY: build run launch install clean cmake check lint tidy tidy-fix help
 
 help:
 	@echo "使用可能なコマンド:"
 	@echo "  make build     - プロジェクトをビルド"
 	@echo "  make run       - ビルドしてStandalone起動"
+	@echo "  make launch    - ビルド済みアプリを起動（ビルドなし）"
 	@echo "  make install   - ビルドしてVST3/AUをインストール"
 	@echo "  make cmake     - CMakeプロジェクトを再生成"
 	@echo "  make check     - コンパイルをチェック（エラーのみ表示）"
@@ -16,6 +17,9 @@ build:
 	cd build && xcodebuild -scheme "BassSplitter_All" -configuration Debug build
 
 run: build
+	open build/BassSplitter_artefacts/Debug/Standalone/BassSplitter.app
+
+launch:
 	open build/BassSplitter_artefacts/Debug/Standalone/BassSplitter.app
 
 install: build

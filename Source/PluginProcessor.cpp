@@ -88,20 +88,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout BassSplitterAudioProcessor::
             juce::AudioParameterFloatAttributes().withStringFromValueFunction(gainToString)));
 
         // Highpass EQ Frequency（0-20kHz、デフォルト0Hz = フィルタリングなし）
-        params.push_back(std::make_unique<juce::AudioParameterFloat>(
-            juce::ParameterID(bandId + "HighpassFreq", 1),
-            bandName + " Highpass Freq",
-            juce::NormalisableRange<float>(0.0f, 20000.0f, 1.0f, 0.3f),
-            0.0f,
-            "Hz"));
+        params.push_back(
+            std::make_unique<juce::AudioParameterFloat>(juce::ParameterID(bandId + "HighpassFreq", 1),
+                                                        bandName + " Highpass Freq",
+                                                        juce::NormalisableRange<float>(0.0f, 20000.0f, 1.0f, 0.3f),
+                                                        0.0f,
+                                                        "Hz"));
 
         // Lowpass EQ Frequency（0-20kHz、デフォルト20kHz = フィルタリングなし）
-        params.push_back(std::make_unique<juce::AudioParameterFloat>(
-            juce::ParameterID(bandId + "LowpassFreq", 1),
-            bandName + " Lowpass Freq",
-            juce::NormalisableRange<float>(0.0f, 20000.0f, 1.0f, 0.3f),
-            20000.0f,
-            "Hz"));
+        params.push_back(
+            std::make_unique<juce::AudioParameterFloat>(juce::ParameterID(bandId + "LowpassFreq", 1),
+                                                        bandName + " Lowpass Freq",
+                                                        juce::NormalisableRange<float>(0.0f, 20000.0f, 1.0f, 0.3f),
+                                                        20000.0f,
+                                                        "Hz"));
     }
 
     return {params.begin(), params.end()};
@@ -221,7 +221,7 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
         spectrumAnalyzer.pushSamples(buffer.getReadPointer(0), numSamples);
 
     // スロープを取得
-    int slopeIndex = static_cast<int>(apvts.getRawParameterValue("slope")->load());
+    auto slopeIndex = static_cast<int>(apvts.getRawParameterValue("slope")->load());
     int numStages = 1;
     switch (slopeIndex)
     {
@@ -251,7 +251,7 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
         juce::String bandId = "band" + juce::String(i + 1);
         float highpassFreq = apvts.getRawParameterValue(bandId + "HighpassFreq")->load();
         float lowpassFreq = apvts.getRawParameterValue(bandId + "LowpassFreq")->load();
-        
+
         // フィルターに周波数を設定
         for (auto& filter : bandEQFilters[static_cast<size_t>(i)].highpass)
             filter.setCutoffFrequency(highpassFreq);
@@ -308,7 +308,7 @@ void BassSplitterAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
             juce::dsp::ProcessContextReplacing<float> ctx(block);
             bandEQFilters[static_cast<size_t>(band)].highpass[static_cast<size_t>(stage)].process(ctx);
         }
-        
+
         // ローパスフィルターを適用
         for (int stage = 0; stage < numStages; ++stage)
         {
@@ -479,7 +479,7 @@ void BassSplitterAudioProcessor::setStateInformation(const void* data, int sizeI
 
 int BassSplitterAudioProcessor::getCurrentSlopeDB() const
 {
-    int slopeIndex = static_cast<int>(apvts.getRawParameterValue("slope")->load());
+    auto slopeIndex = static_cast<int>(apvts.getRawParameterValue("slope")->load());
     switch (slopeIndex)
     {
     case 0:

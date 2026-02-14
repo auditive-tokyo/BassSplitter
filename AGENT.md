@@ -32,6 +32,7 @@
 > ```bash
 > make build      # ビルド
 > make run        # ビルド → Standalone起動
+> make launch     # Standalone起動（ビルド済み前提、ビルドなし）
 > make install    # ビルド → VST3/AUインストール
 > make cmake      # CMakeプロジェクト再生成（ファイル追加/削除時）
 > make check      # コンパイルエラーチェック
@@ -230,6 +231,67 @@
 - ✅ 各バンド独立のEQフィルター（Highpass/Lowpass）
 - ✅ EQパネルUIとスペクトラム上のカーブ表示
 - ✅ クロスオーバー方式からper-band EQ方式への移行
+
+### コード品質リファクタリング（SonarQube導入）
+
+SonarQube for IDE を導入して系統的なコード品質改善を実施中。
+
+#### 対応済み警告
+
+| 警告ID    | 内容                                      | 対応ファイル                                                 | 状態 |
+| --------- | ----------------------------------------- | ------------------------------------------------------------ | ---- |
+| **S1709** | explicit キーワード未使用（暗黙変換）     | SpectrumDisplay.h/cpp                                        | ✅   |
+| **S1242** | using 宣言（JUCE基底クラス）              | PluginProcessor.h/cpp, FaderMeter                            | ✅   |
+| **S5414** | public/private データメンバー混在         | PluginEditor.h, FaderMeter.h, PluginProcessor.h, EQOverlay.h | ✅   |
+| **S5827** | auto 推論（冗長な型宣言）                 | FaderMeter.cpp, EQOverlay.cpp                                | ✅   |
+| **S5350** | const ポインタ未使用                      | PluginEditor.cpp                                             | ✅   |
+| **S5276** | narrowing conversion                      | EQOverlay.cpp                                                | ✅   |
+| **S6004** | if-init-statement                         | FaderMeter.cpp                                               | ✅   |
+| **S6005** | std::array 未使用                         | PluginEditor.cpp                                             | ✅   |
+| **S6012** | CTAD（Class Template Argument Deduction） | FaderMeter.cpp                                               | ✅   |
+
+#### リファクタリングパターン
+
+**S5414 対応の標準パターン** (PluginEditor.h 例):
+
+```cpp
+// Before: public/private が混在
+public:
+    void publicMethod1();
+    int publicData;     // ⚠️ public データメンバー
+    void publicMethod2();
+private:
+    int privateData;
+
+// After: データメンバー → メンバー関数の順
+public:
+    void publicMethod1();
+    void publicMethod2();
+private:
+    int privateData;
+    int publicData;    // private に移動
+    // ... その他メンバー関数 ...
+```
+
+**S1242 対応の標準パターン** (JUCE AudioProcessor):
+
+```cpp
+// Before: 暗黙に基底クラスに委譲
+public:
+    void processBlock(AudioBuffer<float>& buffer, MidiBuffer& midiMessages) override { ... }
+
+// After: using 宣言で明示
+public:
+    using juce::AudioProcessor::processBlock;
+    void processBlock(AudioBuffer<float>& buffer, MidiBuffer& midiMessages) override { ... }
+```
+
+#### ビルド検証コマンド
+
+```bash
+make check   # ビルドエラー検査
+make lint    # 基本的なコード検査（推奨: 実装後は必ず実行）
+```
 
 ### 将来的な機能候補
 

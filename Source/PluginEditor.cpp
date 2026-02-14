@@ -47,16 +47,18 @@ BassSplitterAudioProcessorEditor::BassSplitterAudioProcessorEditor(BassSplitterA
     addAndMakeVisible(spectrumDisplay);
 
     // EQOverlayのコールバック→APVTSパラメータ更新
-    spectrumDisplay.getEQOverlay().onEQFrequencyChanged = [this](int bandIndex, bool isHighpass, float newFreq)
-    {
-        juce::String bandId = "band" + juce::String(bandIndex + 1);
-        juce::String paramId = bandId + (isHighpass ? "HighpassFreq" : "LowpassFreq");
-        if (auto* param = audioProcessor.getAPVTS().getParameter(paramId))
+    spectrumDisplay.getEQOverlay().setEQFrequencyChangedCallback(
+        [this](int bandIndex, bool isHighpass, float newFreq)
         {
-            float normalized = param->convertTo0to1(newFreq);
-            param->setValueNotifyingHost(normalized);
-        }
-    };
+            juce::String bandId = "band" + juce::String(bandIndex + 1);
+            juce::String paramId = bandId + (isHighpass ? "HighpassFreq" : "LowpassFreq");
+            if (auto* param = audioProcessor.getAPVTS().getParameter(paramId))
+            {
+                float normalized = param->convertTo0to1(newFreq);
+                param->setValueNotifyingHost(normalized);
+            }
+        });
+
 
     // ピークリセットボタン
     resetPeaksButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff333344));
@@ -168,16 +170,16 @@ void BassSplitterAudioProcessorEditor::updateSpectrumDisplay()
     auto& eqOverlay = spectrumDisplay.getEQOverlay();
 
     // スロープを更新
-    auto* slopeParam = audioProcessor.getAPVTS().getRawParameterValue("slope");
-    int slopeIndex = static_cast<int>(slopeParam->load());
-    static const int slopeValues[] = {12, 24, 48, 96, 192};
-    eqOverlay.setSlope(slopeValues[slopeIndex]);
+    const auto* slopeParam = audioProcessor.getAPVTS().getRawParameterValue("slope");
+    auto slopeIndex = static_cast<int>(slopeParam->load());
+    static const std::array<int, 5> slopeValues = {12, 24, 48, 96, 192};
+    eqOverlay.setSlope(slopeValues[static_cast<size_t>(slopeIndex)]);
 
     // 各バンドのバイパス状態とEQ周波数を更新
     for (int i = 0; i < BassSplitterAudioProcessor::numBands; ++i)
     {
         juce::String bandId = "band" + juce::String(i + 1);
-        auto* bypassParam = audioProcessor.getAPVTS().getRawParameterValue(bandId + "Bypass");
+        const auto* bypassParam = audioProcessor.getAPVTS().getRawParameterValue(bandId + "Bypass");
         eqOverlay.setBandBypassed(i, bypassParam->load() > 0.5f);
 
         float hpFreq = audioProcessor.getAPVTS().getRawParameterValue(bandId + "HighpassFreq")->load();
@@ -193,17 +195,18 @@ void BassSplitterAudioProcessorEditor::updateLevelMeters()
         auto& controls = bandControls[static_cast<size_t>(i)];
         juce::String bandId = "band" + juce::String(i + 1);
 
-        auto* bypassParam = audioProcessor.getAPVTS().getRawParameterValue(bandId + "Bypass");
+        const auto* bypassParam = audioProcessor.getAPVTS().getRawParameterValue(bandId + "Bypass");
         bool bypassed = bypassParam->load() > 0.5f;
         controls.faderMeter.setBypassed(bypassed);
 
-        auto* monoParam = audioProcessor.getAPVTS().getRawParameterValue(bandId + "Mono");
+        const auto* monoParam = audioProcessor.getAPVTS().getRawParameterValue(bandId + "Mono");
         bool mono = monoParam->load() > 0.5f;
         controls.faderMeter.setMono(mono);
 
         if (!bypassed)
         {
-            float peakL, peakR;
+            float peakL;
+            float peakR;
             audioProcessor.getBandPeakLevelStereo(i, peakL, peakR);
             controls.faderMeter.setLevel(peakL, peakR);
         }
