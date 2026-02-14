@@ -1,5 +1,7 @@
 #pragma once
 
+#include "DSP/BandProcessor.h"
+#include "DSP/ProcessBlockCoordinator.h"
 #include "DSP/SpectrumAnalyzer.h"
 
 #include <atomic>
@@ -68,13 +70,8 @@ public:
 
 private:
     // ---- Private 型定義 ----
-    // 各バンド用のLinkwitz-Riley EQフィルター
-    // 各バンドにハイパス/ローパスのペア（最大8段）
-    struct BandEQ
-    {
-        std::array<juce::dsp::LinkwitzRileyFilter<float>, 8> highpass;
-        std::array<juce::dsp::LinkwitzRileyFilter<float>, 8> lowpass;
-    };
+    // BandProcessorからインポートした型
+    using BandEQ = BandProcessor::BandEQ;
 
     // ---- Private データメンバー ----
     // パラメータ管理
@@ -98,9 +95,17 @@ private:
     std::array<std::atomic<float>, numBands> bandPeakLevelsL;
     std::array<std::atomic<float>, numBands> bandPeakLevelsR;
 
+    // バンド処理ヘルパー
+    BandProcessor bandProcessor;
+    ProcessBlockCoordinator blockCoordinator;
+
     // ---- Private メンバー関数 ----
     // パラメータレイアウト作成
     juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() const;
+
+    // processBlock ヘルパー関数
+    void clearBypassedBandPeaks(const ProcessBlockCoordinator::BandParameters& params);
+    void mixBandsToOutput(juce::AudioBuffer<float>& buffer, const ProcessBlockCoordinator::BandParameters& params, int numChannels, int numSamples);
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(BassSplitterAudioProcessor)
 };

@@ -31,6 +31,8 @@ target_sources(BassSplitter
     PRIVATE
         Source/PluginProcessor.cpp
         Source/PluginEditor.cpp
+        Source/DSP/BandProcessor.cpp
+        Source/DSP/ProcessBlockCoordinator.cpp
         Source/DSP/SpectrumAnalyzer.cpp
         Source/GUI/SpectrumDisplay.cpp
         Source/GUI/FaderMeter.cpp
