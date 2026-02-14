@@ -5,7 +5,7 @@
 
 #include <memory>
 
-class PanControl : public juce::Component
+class PanControl : public juce::Component, public juce::Label::Listener
 {
 public:
     PanControl();
@@ -14,10 +14,15 @@ public:
     void attachToParameter(juce::AudioProcessorValueTreeState& apvts, const juce::String& paramId);
 
     void paint(juce::Graphics& g) override;
+    void resized() override;
     void mouseDown(const juce::MouseEvent& event) override;
     void mouseDrag(const juce::MouseEvent& event) override;
     void mouseUp(const juce::MouseEvent& event) override;
     void mouseDoubleClick(const juce::MouseEvent& event) override;
+
+    // Label::Listener
+    void labelTextChanged(juce::Label* labelThatHasChanged) override;
+    void editorShown(juce::Label* label, juce::TextEditor& editor) override;
 
 private:
     static constexpr float MIN_PAN_VALUE = -50.0f;
@@ -27,6 +32,7 @@ private:
 
     juce::Slider panSlider; // invisible slider for APVTS attachment
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> panAttachment;
+    juce::Label panValueLabel; // editable label for direct keyboard input
     juce::Colour bandColour{0xff888888};
     bool isDragging = false;
     float lastMouseY = 0.0f;
@@ -34,6 +40,7 @@ private:
     float getCurrentValue() const;
     juce::String formatDisplayValue(float value) const;
     float getAngleFromValue(float value) const;
+    void updateLabelText();
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PanControl)
 };

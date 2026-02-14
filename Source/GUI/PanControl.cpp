@@ -8,6 +8,23 @@ PanControl::PanControl()
     panSlider.setRange(MIN_PAN_VALUE, MAX_PAN_VALUE, 1.0f);
     panSlider.setValue(0.0f, juce::dontSendNotification);
     // Keep slider invisible - we only use it for APVTS attachment
+
+    // スライダーの値が変わったらラベルを更新
+    panSlider.onValueChange = [this]() { updateLabelText(); };
+
+    // Pan値入力用ラベル（FaderMeterのdbValueLabelと同じスタイル）
+    panValueLabel.setFont(juce::FontOptions(12.0f));
+    panValueLabel.setJustificationType(juce::Justification::centred);
+    panValueLabel.setColour(juce::Label::textColourId, juce::Colour(0xff4a90d9));
+    panValueLabel.setColour(juce::Label::backgroundColourId, juce::Colours::transparentBlack);
+    panValueLabel.setColour(juce::Label::outlineColourId, juce::Colours::transparentBlack);
+    panValueLabel.setColour(juce::Label::textWhenEditingColourId, juce::Colours::white);
+    panValueLabel.setColour(juce::Label::backgroundWhenEditingColourId, juce::Colour(0xff1a1a2e));
+    panValueLabel.setColour(juce::Label::outlineWhenEditingColourId, juce::Colour(0xff4a90d9));
+    panValueLabel.setEditable(true, true, false); // シングル/ダブルクリックで編集
+    panValueLabel.setText("C", juce::dontSendNotification);
+    panValueLabel.addListener(this);
+    addAndMakeVisible(panValueLabel);
 }
 
 void PanControl::configure(juce::Colour colour)
@@ -28,9 +45,6 @@ void PanControl::paint(juce::Graphics& g)
     // ノブ表示エリア（上部: 70%）
     const auto knobAreaHeight = bounds.getHeight() * 0.70f;
     const auto knobBounds = bounds.removeFromTop(knobAreaHeight);
-
-    // テキスト表示エリア（下部: 30%）
-    const auto textBounds = bounds;
 
     const auto centreX = knobBounds.getCentreX();
     const auto centreY = knobBounds.getCentreY();
@@ -59,11 +73,15 @@ void PanControl::paint(juce::Graphics& g)
     g.setColour(juce::Colours::white);
     g.fillEllipse(centreX - 3.0f, centreY - 3.0f, 6.0f, 6.0f);
 
-    // Display value text (below the knob)
-    g.setColour(juce::Colours::lightgrey);
-    g.setFont(12.0f);
-    auto displayText = formatDisplayValue(currentValue);
-    g.drawFittedText(displayText, textBounds.toNearestInt(), juce::Justification::centred, 1);
+    // テキスト表示はpanValueLabelが担当するため、ここでは描画しない
+}
+
+void PanControl::resized()
+{
+    auto bounds = getLocalBounds();
+    // 下部30%にラベルを配置
+    auto labelHeight = bounds.getHeight() * 30 / 100;
+    panValueLabel.setBounds(bounds.removeFromBottom(labelHeight));
 }
 
 void PanControl::mouseDown(const juce::MouseEvent& event)
@@ -120,4 +138,36 @@ float PanControl::getAngleFromValue(float value) const
     // Map value from [-50, +50] to angle [MIN_ANGLE, MAX_ANGLE]
     const auto normalizedValue = (value - MIN_PAN_VALUE) / (MAX_PAN_VALUE - MIN_PAN_VALUE); // [0, 1]
     return std::lerp(MIN_ANGLE, MAX_ANGLE, normalizedValue);
+}
+
+void PanControl::updateLabelText()
+{
+    panValueLabel.setText(formatDisplayValue(getCurrentValue()), juce::dontSendNotification);
+    repaint();
+}
+
+void PanControl::editorShown(juce::Label*, juce::TextEditor& editor)
+{
+    // 数値、マイナス記号、c/C のみ許可
+    editor.setInputRestrictions(0, "-0123456789cC");
+}
+
+void PanControl::labelTextChanged(juce::Label* labelThatHasChanged)
+{
+    if (labelThatHasChanged == &panValueLabel)
+    {
+        juce::String text = panValueLabel.getText().trim();
+
+        // "c" or "C" → center (0)
+        if (text.equalsIgnoreCase("c"))
+        {
+            panSlider.setValue(0.0f, juce::sendNotificationSync);
+            return;
+        }
+
+        // 数値をパース
+        float value = text.getFloatValue();
+        value = juce::jlimit(MIN_PAN_VALUE, MAX_PAN_VALUE, value);
+        panSlider.setValue(value, juce::sendNotificationSync);
+    }
 }
