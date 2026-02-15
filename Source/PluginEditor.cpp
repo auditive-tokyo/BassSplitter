@@ -131,6 +131,22 @@ void BassSplitterAudioProcessorEditor::setupBandControls(int bandIndex)
     controls.monoAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         audioProcessor.getAPVTS(), bandId + "Mono", controls.monoButton);
 
+    // FXチェーンボタン
+    controls.fxButton.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff2a2a3e));
+    controls.fxButton.setColour(juce::TextButton::textColourOffId, juce::Colour(0xff8ec8ff));
+    addAndMakeVisible(controls.fxButton);
+    controls.fxButton.onClick = [this, bandIndex]()
+    {
+        auto idx = static_cast<size_t>(bandIndex);
+        if (!fxWindows[idx])
+        {
+            fxWindows[idx] = std::make_unique<FXChainWindow>(
+                audioProcessor.getBandName(bandIndex), bandIndex);
+        }
+        fxWindows[idx]->setVisible(true);
+        fxWindows[idx]->toFront(true);
+    };
+
     // パンコントロール（ノブ）
     controls.panControl.configure(bandColour);
     controls.panControl.attachToParameter(audioProcessor.getAPVTS(), bandId + "Pan");
@@ -251,8 +267,9 @@ void BassSplitterAudioProcessorEditor::resized()
         controls.panControl.setBounds(bandArea.removeFromTop(95).reduced(2, 0));
         bandArea.removeFromTop(3);
 
-        // ボタン用のエリアを下から確保（縦並び：EQ, Mono, Solo, Bypass）
-        auto buttonArea = bandArea.removeFromBottom(88); // 4ボタン × 22px
+        // ボタン用のエリアを下から確保（縦並び：FX, EQ, Mono, Solo, Bypass）
+        auto buttonArea = bandArea.removeFromBottom(110); // 5ボタン × 22px
+        controls.fxButton.setBounds(buttonArea.removeFromTop(22).reduced(4, 1));
         controls.eqButton.setBounds(buttonArea.removeFromTop(22).reduced(4, 1));
         controls.monoButton.setBounds(buttonArea.removeFromTop(22).reduced(4, 1));
         controls.soloButton.setBounds(buttonArea.removeFromTop(22).reduced(4, 1));

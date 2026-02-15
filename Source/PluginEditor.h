@@ -1,5 +1,6 @@
 #pragma once
 
+#include "GUI/FXChainWindow.h"
 #include "GUI/FaderMeter.h"
 #include "GUI/PanControl.h"
 #include "GUI/SpectrumDisplay.h"
@@ -13,6 +14,7 @@
 struct BandControls
 {
     juce::Label nameLabel;
+    juce::TextButton fxButton{"FX"};
     juce::TextButton eqButton{"EQ"};
     juce::TextButton monoButton{"Mono"};
     juce::TextButton soloButton{"Solo"};
@@ -54,6 +56,9 @@ private:
 
     // スペクトラムディスプレイ（EQOverlay内蔵）
     SpectrumDisplay spectrumDisplay;
+
+    // FXチェーンウィンドウ（各バンドに1つ）
+    std::array<std::unique_ptr<FXChainWindow>, BassSplitterAudioProcessor::numBands> fxWindows;
 
     // ピークリセットボタン
     juce::TextButton resetPeaksButton{"Reset"};
